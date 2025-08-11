@@ -1,6 +1,5 @@
-import VerifyEmailForm from "@/components/auth/verify-email-form"
+import ElementPayVerifyEmailForm from "@/components/auth/elementpay-verify-email-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import Link from "next/link"
 import Image from "next/image"
 
 export default function VerifyEmailPage() {
@@ -17,13 +16,7 @@ export default function VerifyEmailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <VerifyEmailForm />
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            Didn&apos;t receive the email?{" "}
-            <Link href="#" className="underline">
-              Resend code
-            </Link>
-          </div>
+          <ElementPayVerifyEmailForm />
         </CardContent>
       </Card>
     </div>

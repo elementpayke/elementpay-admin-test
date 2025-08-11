@@ -5,6 +5,12 @@ export type User = {
   password?: string
   emailVerified?: boolean
   verificationCode?: string
+  avatar?: string
+  phone?: string
+  company?: string
+  role?: string
+  createdAt?: string
+  lastLoginAt?: string
 }
 
 export type Environment = "mainnet" | "testnet"

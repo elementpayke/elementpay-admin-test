@@ -4,14 +4,18 @@ import bcrypt from "bcryptjs"
 const users: User[] = []
 const apiKeys: ApiKey[] = []
 
-// Helper to generate a random API key
+// Helper to generate a random API key (Element Pay compatible format)
 function generateApiKey(environment: Environment): string {
   const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
   let result = ""
-  for (let i = 0; i < 32; i++) {
+  
+  // Generate a longer, more secure key
+  for (let i = 0; i < 40; i++) {
     result += characters.charAt(Math.floor(Math.random() * characters.length))
   }
-  const prefix = environment === "mainnet" ? "mk-" : "tk-"
+  
+  // Use Element Pay style prefixes
+  const prefix = environment === "mainnet" ? "ep_live_" : "ep_test_"
   return `${prefix}${result}`
 }
 
@@ -65,6 +69,31 @@ export function resendVerificationCode(email: string): boolean {
     return true
   }
   return false
+}
+
+// Profile functions
+export function getUserById(id: string): User | undefined {
+  return users.find((user) => user.id === id)
+}
+
+export function updateUserProfile(id: string, updates: Partial<User>): User | null {
+  const userIndex = users.findIndex((user) => user.id === id)
+  if (userIndex === -1) {
+    return null
+  }
+  
+  // Don't allow updating sensitive fields
+  const { password, emailVerified, verificationCode, ...safeUpdates } = updates
+  
+  users[userIndex] = { ...users[userIndex], ...safeUpdates }
+  return users[userIndex]
+}
+
+export function updateUserLastLogin(email: string): void {
+  const user = getUserByEmail(email)
+  if (user) {
+    user.lastLoginAt = new Date().toISOString()
+  }
 }
 
 // API Key functions
@@ -122,6 +151,13 @@ if (users.length === 0) {
   if (testUser) {
     testUser.emailVerified = true // Auto-verify for easier testing
     testUser.verificationCode = undefined
+    testUser.phone = "+1 (555) 123-4567"
+    testUser.company = "Element Pay Inc."
+    testUser.role = "Developer"
+    testUser.avatar = "/placeholder-user.jpg"
+    testUser.createdAt = new Date("2024-01-15").toISOString()
+    testUser.lastLoginAt = new Date().toISOString()
+    
     createApiKey(testUser.id, "Production API Key", "mainnet")
     createApiKey(testUser.id, "Development API Key", "testnet")
     createApiKey(testUser.id, "Another Testnet Key", "testnet")

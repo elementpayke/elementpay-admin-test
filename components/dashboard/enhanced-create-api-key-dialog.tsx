@@ -34,7 +34,8 @@ export function CreateApiKeyDialog({
   defaultEnvironment = "testnet" 
 }: CreateApiKeyDialogProps) {
   const [keyName, setKeyName] = useState("")
-  const [environment, setEnvironment] = useState<Environment>(defaultEnvironment)
+  // For now, we only support testnet
+  const environment: Environment = "testnet"
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,9 +49,9 @@ export function CreateApiKeyDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Create New API Key</DialogTitle>
+          <DialogTitle>Create New Testnet API Key</DialogTitle>
           <DialogDescription>
-            Create a new API key for your application. Choose the environment and give it a descriptive name.
+            Create a new API key for Element Pay sandbox environment. This key will only work in the testnet environment.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -59,7 +60,7 @@ export function CreateApiKeyDialog({
               <Label htmlFor="name">API Key Name</Label>
               <Input
                 id="name"
-                placeholder="e.g., Production API, Mobile App Key"
+                placeholder="e.g., Test App Key, Development API"
                 value={keyName}
                 onChange={(e) => setKeyName(e.target.value)}
                 className="col-span-3"
@@ -68,43 +69,21 @@ export function CreateApiKeyDialog({
 
             <div className="space-y-3">
               <Label>Environment</Label>
-              <RadioGroup
-                value={environment}
-                onValueChange={(value) => setEnvironment(value as Environment)}
-                className="space-y-3"
-              >
-                <div className="flex items-center space-x-3 border rounded-lg p-4 hover:bg-muted/50">
-                  <RadioGroupItem value="mainnet" id="mainnet" />
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center space-x-3">
-                      <Globe className="h-5 w-5 text-green-600" />
-                      <div>
-                        <Label htmlFor="mainnet" className="font-medium">Mainnet</Label>
-                        <p className="text-sm text-muted-foreground">Production environment</p>
-                      </div>
-                    </div>
-                    <Badge variant="default" className="bg-green-600">
-                      Production
-                    </Badge>
+              <div className="flex items-center space-x-3 border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/20">
+                <TestTube className="h-5 w-5 text-blue-600" />
+                <div className="flex items-center justify-between w-full">
+                  <div>
+                    <div className="font-medium">Testnet (Sandbox)</div>
+                    <p className="text-sm text-muted-foreground">Development and testing environment</p>
                   </div>
+                  <Badge variant="secondary" className="bg-blue-600 text-white">
+                    Sandbox
+                  </Badge>
                 </div>
-
-                <div className="flex items-center space-x-3 border rounded-lg p-4 hover:bg-muted/50">
-                  <RadioGroupItem value="testnet" id="testnet" />
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center space-x-3">
-                      <TestTube className="h-5 w-5 text-blue-600" />
-                      <div>
-                        <Label htmlFor="testnet" className="font-medium">Testnet</Label>
-                        <p className="text-sm text-muted-foreground">Development and testing</p>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-blue-600">
-                      Sandbox
-                    </Badge>
-                  </div>
-                </div>
-              </RadioGroup>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Mainnet (Production) keys are not available yet. Coming soon!
+              </p>
             </div>
           </div>
           <DialogFooter>

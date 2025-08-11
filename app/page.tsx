@@ -1,3 +1,4 @@
+
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -5,29 +6,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <div className="flex justify-center mb-6">
-            <Image src="/elementpay.png" alt="Element Pay Logo" width={64} height={64} />
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="max-w-md mx-auto space-y-8">
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <Image src="/elementpay.png" alt="Element Pay Logo" width={80} height={80} />
           </div>
-          <CardTitle className="text-3xl font-bold">Welcome to Element Pay</CardTitle>
-          <CardDescription className="mt-2 text-lg text-muted-foreground">
-            Manage your API keys and access powerful payment features.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-2">
-            <Button asChild size="lg">
-              <Link href="/auth/login">Login</Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/auth/signup">Sign Up</Link>
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">Start building with our secure payment APIs today.</p>
-        </CardContent>
-      </Card>
+          <h1 className="text-4xl font-bold">Element Pay Dashboard</h1>
+          <p className="text-xl text-muted-foreground">
+            Manage your payments and API keys with Element Pay
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle>Welcome to Element Pay</CardTitle>
+            <CardDescription>
+              Sign in to your account or create a new one to get started
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Button asChild className="w-full" size="lg">
+                <Link href="/auth/elementpay-login">Sign In</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full" size="lg">
+                <Link href="/auth/elementpay-signup">Create Account</Link>
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground text-center">
+              Connect to the Element Pay sandbox API
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

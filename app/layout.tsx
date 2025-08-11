@@ -6,13 +6,17 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
+import { ElementPayAuthProvider } from "@/components/providers/elementpay-auth-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Modern React Dashboard",
-  description: "A modern React dashboard with authentication and API key management.",
-    generator: 'v0.dev'
+  title: "Element Pay Dashboard",
+  description: "Element Pay dashboard with authentication and API key management.",
+  generator: 'v0.dev',
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
@@ -23,13 +27,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AuthProvider>
-            <QueryProvider>
-              {children}
-              <Toaster />
-            </QueryProvider>
-          </AuthProvider>
+        <ThemeProvider 
+          attribute="class" 
+          defaultTheme="system" 
+          enableSystem 
+          disableTransitionOnChange
+        >
+          <ElementPayAuthProvider>
+            <AuthProvider>
+              <QueryProvider>
+                {children}
+                <Toaster />
+              </QueryProvider>
+            </AuthProvider>
+          </ElementPayAuthProvider>
         </ThemeProvider>
       </body>
     </html>
