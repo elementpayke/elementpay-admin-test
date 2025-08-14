@@ -1,7 +1,7 @@
 import NextAuth from "next-auth"
 import type { AuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { getUserByEmail, verifyPassword } from "@/lib/mock-db"
+import { getUserByEmail, verifyPassword, updateUserLastLogin } from "@/lib/mock-db"
 import type { User } from "@/lib/types"
 
 export const authOptions: AuthOptions = {
@@ -36,6 +36,9 @@ export const authOptions: AuthOptions = {
         if (!isValidPassword) {
           throw new Error("Invalid password")
         }
+
+        // Update last login time
+        updateUserLastLogin(credentials.email as string)
 
         return { id: user.id, email: user.email, name: user.name } as User
       },

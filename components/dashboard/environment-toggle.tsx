@@ -3,44 +3,43 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Globe, TestTube } from "lucide-react"
-import type { Environment } from "@/lib/types"
 
 interface EnvironmentToggleProps {
-  currentEnvironment: Environment
-  onEnvironmentChange: (environment: Environment) => void
+  currentEnvironment: 'sandbox' | 'live'
+  onEnvironmentChange: (environment: 'sandbox' | 'live') => void
 }
 
 export function EnvironmentToggle({ currentEnvironment, onEnvironmentChange }: EnvironmentToggleProps) {
   return (
     <div className="flex items-center gap-2 p-1 bg-muted rounded-lg">
       <Button
-        variant={currentEnvironment === "mainnet" ? "default" : "ghost"}
+        variant={currentEnvironment === "live" ? "default" : "ghost"}
         size="sm"
-        onClick={() => onEnvironmentChange("mainnet")}
+        onClick={() => onEnvironmentChange("live")}
         className="flex items-center gap-2"
       >
         <Globe className="h-4 w-4" />
-        Mainnet
+        Live
         <Badge 
-          variant={currentEnvironment === "mainnet" ? "secondary" : "outline"} 
+          variant={currentEnvironment === "live" ? "secondary" : "outline"} 
           className="ml-1 text-xs"
         >
           Production
         </Badge>
       </Button>
       <Button
-        variant={currentEnvironment === "testnet" ? "default" : "ghost"}
+        variant={currentEnvironment === "sandbox" ? "default" : "ghost"}
         size="sm"
-        onClick={() => onEnvironmentChange("testnet")}
+        onClick={() => onEnvironmentChange("sandbox")}
         className="flex items-center gap-2"
       >
         <TestTube className="h-4 w-4" />
-        Testnet
+        Sandbox
         <Badge 
-          variant={currentEnvironment === "testnet" ? "secondary" : "outline"} 
+          variant={currentEnvironment === "sandbox" ? "secondary" : "outline"} 
           className="ml-1 text-xs"
         >
-          Sandbox
+          Test
         </Badge>
       </Button>
     </div>
