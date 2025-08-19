@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { verifyUserEmail } from "@/lib/mock-db"
 
 export async function POST(req: Request) {
   try {
@@ -9,10 +8,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email and verification code are required" }, { status: 400 })
     }
 
-    const success = verifyUserEmail(email, code)
+    // Proxy to Element Pay email verification endpoint
+    const response = await fetch(`${process.env.ELEMENT_PAY_API_BASE_URL}/auth/verify-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, code }),
+    })
 
-    if (!success) {
-      return NextResponse.json({ error: "Invalid email or verification code" }, { status: 400 })
+    if (!response.ok) {
+      const error = await response.text()
+      return NextResponse.json({ error: error || "Email verification failed" }, { status: response.status })
     }
 
     return NextResponse.json({ message: "Email verified successfully." }, { status: 200 })

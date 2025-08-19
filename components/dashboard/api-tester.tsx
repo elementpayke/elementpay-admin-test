@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -9,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
-import { useElementPayAuth } from "@/components/providers/elementpay-auth-provider"
+import { apiKeysClient } from "@/lib/api-keys-client"
 import { elementPayAPI } from "@/lib/utils"
 import { CheckCircle, XCircle, Loader2, Globe, TestTube, Webhook } from "lucide-react"
 import type { ApiKey } from "@/lib/types"
@@ -25,21 +26,18 @@ export default function ApiTester() {
   const [selectedApiKey, setSelectedApiKey] = useState("")
   const [webhookPayload, setWebhookPayload] = useState<string>("")
   const [testResults, setTestResults] = useState<ApiTestResult[]>([])
-  const { tokens } = useElementPayAuth()
+  const { data: session } = useSession()
   const { toast } = useToast()
 
   // Fetch user's API keys (testnet)
   const { data: apiKeys = [] } = useQuery<ApiKey[]>({
     queryKey: ["apiKeys", "testnet"],
     queryFn: async () => {
-      if (!tokens?.access_token) throw new Error("No authentication token available")
-      const response = await fetch(`/api/keys?environment=testnet`, {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
-      })
-      if (!response.ok) throw new Error("Failed to fetch API keys")
-      return response.json()
+      if (!session?.elementPayToken) throw new Error("No authentication token available")
+      const client = apiKeysClient()
+      return client.list("testnet", session.elementPayToken)
     },
-    enabled: !!tokens?.access_token,
+    enabled: !!session?.elementPayToken,
   })
 
   const updateTestResult = (endpoint: string, result: Partial<ApiTestResult>) => {
@@ -59,7 +57,7 @@ export default function ApiTester() {
 
     updateTestResult("/rates/rates", { status: "loading" })
     try {
-      const response = await elementPayAPI.getRates("usdc", selectedApiKey)
+      const response = await elementPayAPI.getRates(selectedApiKey)
       const text = await response.text()
       if (response.ok) {
         updateTestResult("/rates/rates", { status: "success", response: { status: response.status, body: text } })

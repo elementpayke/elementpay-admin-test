@@ -1,282 +1,205 @@
 "use client"
 
-import { useState } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useElementPayAuth } from "@/components/providers/elementpay-auth-provider"
-import { useToast } from "@/components/ui/use-toast"
+import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus, TestTube } from "lucide-react"
-import { ApiKeyTable } from "./enhanced-api-key-table"
-import { CreateApiKeyDialog } from "./enhanced-create-api-key-dialog"
+import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/components/ui/use-toast"
+import { apiKeysClient } from "@/lib/api-keys-client"
 import type { ApiKey, Environment } from "@/lib/types"
+import { CreateApiKeyDialog } from "./enhanced-create-api-key-dialog"
+import { ApiKeyTable } from "./enhanced-api-key-table"
+import { ApiKeyRevealModal } from "./api-key-reveal-modal"
 
 export default function EnhancedApiKeyManager() {
+  const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const { tokens } = useElementPayAuth()
-  // For now, only support testnet
-  const [currentEnvironment] = useState<Environment>("testnet")
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 
-  const {
-    data: apiKeys = [],
-    isLoading,
-    isError,
-    error,
-  } = useQuery<ApiKey[], Error>({
-    queryKey: ["apiKeys", currentEnvironment],
+  const client = useMemo(() => apiKeysClient(), [])
+  const token = session?.elementPayToken as string | undefined
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [newKeyForReveal, setNewKeyForReveal] = useState<{
+    name: string
+    key: string
+    environment: string
+  } | null>(null)
+
+  // Only sandbox/testnet is supported for now
+  const environment: Environment = "testnet"
+
+  const apiKeysQuery = useQuery<ApiKey[]>({
+    queryKey: ["apiKeys", environment],
+    enabled: !!token,
     queryFn: async () => {
-      if (!tokens?.access_token) {
-        throw new Error("No authentication token available")
-      }
-
-      const response = await fetch(`/api/keys?environment=${currentEnvironment}`, {
-        headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
-        },
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch API keys")
-      }
-      return response.json()
-    },
-    enabled: !!tokens?.access_token, // Only run query if we have a token
-  })
-
-  const createMutation = useMutation({
-    mutationFn: async (data: { name: string; environment: Environment }) => {
-      if (!tokens?.access_token) {
-        throw new Error("No authentication token available")
-      }
-
-      const response = await fetch("/api/keys", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${tokens.access_token}`,
-        },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to create API key")
-      }
-      return response.json()
-    },
-    onSuccess: (newKey) => {
-      queryClient.invalidateQueries({ queryKey: ["apiKeys"] })
-      setIsCreateDialogOpen(false)
-      toast({
-        title: "API Key Created",
-        description: `"${newKey.name}" has been created successfully.`,
-      })
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        type: "destructive",
-      })
+      if (!token) throw new Error("Not authenticated")
+      return client.list(environment, token)
     },
   })
 
-  const regenerateMutation = useMutation({
+  const createKey = useMutation({
+    mutationFn: async ({ name }: { name: string }) => {
+      console.log('createKey mutation starting with name:', name)
+      if (!token) {
+        console.error('No token available')
+        throw new Error("Not authenticated")
+      }
+      console.log('Token available, calling client.create')
+      try {
+        const result = await client.create({ name, environment }, token)
+        console.log('client.create succeeded:', JSON.stringify(result, null, 2))
+        return result
+      } catch (error) {
+        console.error('client.create failed:', error)
+        throw error
+      }
+    },
+    onSuccess: (created) => {
+      console.log('createKey onSuccess - created object:', JSON.stringify(created, null, 2))
+      console.log('created keys exist?', { name: !!created?.name, key: !!created?.key, env: !!created?.environment })
+      
+      queryClient.invalidateQueries({ queryKey: ["apiKeys", environment] })
+      
+      // Safety check - ensure we have the required fields (name is required, key can be empty)
+      if (!created || !created.name) {
+        console.error('Created API key is missing required fields:', created)
+        toast({ 
+          title: "API key created", 
+          description: "API key was created but details couldn't be loaded for display.",
+        })
+        setIsCreateOpen(false)
+        return
+      }
+      
+      // Log if key is empty but still show modal
+      if (!created.key || created.key.trim() === '') {
+        console.warn('Created API key has empty key field - will show modal with message')
+      }
+      
+      // Open one-time reveal modal with full key if provided; fallback to preview
+      const keyForReveal = {
+        name: created.name,
+        key: created.key,
+        environment: created.environment || 'testnet',
+      }
+      console.log('Setting newKeyForReveal to:', JSON.stringify(keyForReveal, null, 2))
+      setNewKeyForReveal(keyForReveal)
+      setIsCreateOpen(false)
+      toast({ title: "API key created", description: `"${created.name}" generated.` })
+    },
+    onError: (err: any) => {
+      console.error('createKey onError:', err)
+      console.error('Error details:', { message: err?.message, stack: err?.stack, cause: err?.cause })
+      toast({ 
+        title: "Create failed", 
+        description: err?.message || "Unknown error"
+      })
+    },
+  })
+
+  const deleteKey = useMutation({
     mutationFn: async (id: string) => {
-      if (!tokens?.access_token) {
-        throw new Error("No authentication token available")
-      }
-
-      const response = await fetch(`/api/keys/${id}/regenerate`, {
-        method: "POST",
-        headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
-        },
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to regenerate API key")
-      }
-      return response.json()
-    },
-    onSuccess: (regeneratedKey) => {
-      queryClient.invalidateQueries({ queryKey: ["apiKeys"] })
-      toast({
-        title: "API Key Regenerated",
-        description: `"${regeneratedKey.name}" has been regenerated successfully.`,
-      })
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        type: "destructive",
-      })
-    },
-  })
-
-  const revokeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!tokens?.access_token) {
-        throw new Error("No authentication token available")
-      }
-
-      const response = await fetch(`/api/keys/${id}/revoke`, {
-        method: "POST",
-        headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
-        },
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to revoke API key")
-      }
-      return response.json()
+      if (!token) throw new Error("Not authenticated")
+      return client.delete(id, token)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["apiKeys"] })
-      toast({
-        title: "API Key Revoked",
-        description: "The API key has been revoked successfully.",
-      })
+      queryClient.invalidateQueries({ queryKey: ["apiKeys", environment] })
+      toast({ title: "Deleted", description: "API key removed." })
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        type: "destructive",
-      })
+    onError: (err: any) => {
+  toast({ title: "Delete failed", description: err?.message || "Unknown error", type: "destructive" })
     },
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!tokens?.access_token) {
-        throw new Error("No authentication token available")
-      }
-
-      const response = await fetch(`/api/keys/${id}`, {
-        method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
-        },
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to delete API key")
-      }
+  // Unsupported operations in Element Pay API: regenerate/revoke. We surface helpful errors.
+  const regenerateKey = useMutation({
+    mutationFn: async (_id: string) => {
+      throw new Error("Regenerate is not supported; create a new key instead.")
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["apiKeys"] })
-      toast({
-        title: "API Key Deleted",
-        description: "The API key has been deleted permanently.",
-      })
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        type: "destructive",
-      })
-    },
+  onError: (err: any) => toast({ title: "Not supported", description: err.message, type: "destructive" }),
   })
 
-  const handleEnvironmentChange = (environment: Environment) => {
-    // For now, we only support testnet, so this is a no-op
-    console.log("Environment change requested, but only testnet is supported:", environment)
-  }
+  // Debug logging - moved here after all variables are declared
+  console.log('EnhancedApiKeyManager render - session:', !!session)
+  console.log('Token available:', !!token)
+  console.log('Token preview:', token ? `${token.substring(0, 20)}...` : 'none')
+  console.log('createKey.isPending:', createKey.isPending)
+  console.log('createKey.isError:', createKey.isError)
+  console.log('createKey.isSuccess:', createKey.isSuccess)
+  console.log('newKeyForReveal:', newKeyForReveal)
 
-  const handleCreateKey = (data: { name: string; environment: Environment }) => {
-    // Force testnet environment
-    createMutation.mutate({ ...data, environment: "testnet" })
-  }
+  useEffect(() => {
+    if (!token) return
+    // warm cache
+    queryClient.prefetchQuery({ queryKey: ["apiKeys", environment], queryFn: () => client.list(environment, token) })
+  }, [token, environment, client, queryClient])
 
-  const handleRegenerateKey = (id: string) => {
-    regenerateMutation.mutate(id)
-  }
-
-  const handleRevokeKey = (id: string) => {
-    revokeMutation.mutate(id)
-  }
-
-  const handleDeleteKey = (id: string) => {
-    deleteMutation.mutate(id)
-  }
-
-  if (isLoading) {
+  if (!token) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>API Keys</CardTitle>
-          <CardDescription>Loading your API keys...</CardDescription>
+          <CardDescription>Sign in to view and manage your keys.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (isError) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>API Keys</CardTitle>
-          <CardDescription>Failed to load API keys</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-destructive">
-            <p>{error?.message || "An error occurred while loading your API keys."}</p>
-          </div>
-        </CardContent>
+        <CardContent>You must be logged in.</CardContent>
       </Card>
     )
   }
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <TestTube className="h-5 w-5" />
-              API Key Management (Testnet)
-            </CardTitle>
-            <CardDescription>
-              Manage your API keys for Element Pay sandbox environment. Only testnet keys are currently supported.
-            </CardDescription>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button onClick={() => setIsCreateDialogOpen(true)} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Create Testnet API Key
-            </Button>
-          </div>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div>
+          <CardTitle className="flex items-center gap-2">API Keys <Badge variant="secondary">Sandbox</Badge></CardTitle>
+          <CardDescription>Manage your Element Pay sandbox keys.</CardDescription>
         </div>
+        <Button onClick={() => setIsCreateOpen(true)}>Create API Key</Button>
       </CardHeader>
       <CardContent>
-        <ApiKeyTable
-          apiKeys={apiKeys}
-          environment={currentEnvironment}
-          onRegenerate={handleRegenerateKey}
-          onRevoke={handleRevokeKey}
-          onDelete={handleDeleteKey}
-          isRegenerating={regenerateMutation.isPending}
-          isDeleting={deleteMutation.isPending}
-        />
-
-        <CreateApiKeyDialog
-          isOpen={isCreateDialogOpen}
-          onOpenChange={setIsCreateDialogOpen}
-          onCreate={handleCreateKey}
-          isCreating={createMutation.isPending}
-          defaultEnvironment={currentEnvironment}
-        />
+        {apiKeysQuery.isLoading ? (
+          <div>Loading keys…</div>
+        ) : apiKeysQuery.isError ? (
+          <div className="text-destructive">{(apiKeysQuery.error as any)?.message || "Failed to load keys"}</div>
+        ) : (
+          <ApiKeyTable
+            apiKeys={apiKeysQuery.data || []}
+            environment={environment}
+            onRegenerate={(id) => regenerateKey.mutate(id)}
+            onRevoke={(id) => deleteKey.mutate(id)}
+            onDelete={(id) => deleteKey.mutate(id)}
+            isRegenerating={regenerateKey.isPending}
+            isDeleting={deleteKey.isPending}
+          />
+        )}
       </CardContent>
+
+      <CreateApiKeyDialog
+        isOpen={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onCreate={({ name }) => {
+          console.log('CreateApiKeyDialog onCreate called with name:', name)
+          console.log('createKey object:', createKey)
+          console.log('createKey.mutate exists:', typeof createKey.mutate === 'function')
+          console.log('About to call createKey.mutate')
+          try {
+            createKey.mutate({ name })
+            console.log('createKey.mutate called successfully')
+          } catch (error) {
+            console.error('Error calling createKey.mutate:', error)
+          }
+        }}
+        isCreating={createKey.isPending}
+        defaultEnvironment={environment}
+      />
+
+      <ApiKeyRevealModal
+        isOpen={!!newKeyForReveal}
+        onClose={() => setNewKeyForReveal(null)}
+        apiKey={newKeyForReveal}
+      />
     </Card>
   )
 }

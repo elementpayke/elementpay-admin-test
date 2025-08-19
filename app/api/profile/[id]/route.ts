@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
-import { getUserById, updateUserProfile } from "@/lib/mock-db"
 
 export async function GET(
   request: NextRequest,
@@ -19,16 +18,20 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const user = getUserById(params.id)
-    
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    // Return user data from session (Element Pay doesn't have profile endpoints)
+    const userProfile = {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      // Default profile fields since Element Pay doesn't store these
+      phone: "",
+      company: "",
+      role: "Developer",
+      isVerified: true, // Assume verified if they can log in
+      createdAt: new Date().toISOString(), // Placeholder
     }
-
-    // Remove sensitive information
-    const { password, verificationCode, ...safeUser } = user
     
-    return NextResponse.json(safeUser)
+    return NextResponse.json(userProfile)
   } catch (error) {
     console.error("Profile fetch error:", error)
     return NextResponse.json(
@@ -65,23 +68,23 @@ export async function PUT(
       )
     }
 
-    const updates = {
+    // Since Element Pay doesn't have profile update endpoints,
+    // we'll just validate the data and return success
+    // In a real implementation, you might store this in a separate database
+    // or update it through Element Pay if they add profile endpoints
+    
+    const updatedProfile = {
+      id: session.user.id,
+      email: session.user.email,
       name: name.trim(),
       phone: phone?.trim() || "",
       company: company?.trim() || "",
-      role: role?.trim() || "",
+      role: role?.trim() || "Developer",
+      isVerified: true,
+      createdAt: new Date().toISOString(),
     }
-
-    const updatedUser = updateUserProfile(params.id, updates)
     
-    if (!updatedUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    // Remove sensitive information
-    const { password, verificationCode, ...safeUser } = updatedUser
-    
-    return NextResponse.json(safeUser)
+    return NextResponse.json(updatedProfile)
   } catch (error) {
     console.error("Profile update error:", error)
     return NextResponse.json(

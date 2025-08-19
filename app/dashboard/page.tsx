@@ -1,6 +1,6 @@
 "use client"
 
-import { useElementPayAuth } from "@/components/providers/elementpay-auth-provider"
+import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import DashboardHeader from "@/components/dashboard/dashboard-header"
@@ -8,16 +8,16 @@ import EnhancedApiKeyManager from "@/components/dashboard/enhanced-api-key-manag
 import ApiTester from "@/components/dashboard/api-tester"
 
 export default function DashboardPage() {
-  const { user, tokens, isLoading } = useElementPayAuth()
+  const { data: session, status } = useSession()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && !tokens) {
+    if (status !== "loading" && !session) {
       router.push("/auth/login")
     }
-  }, [isLoading, tokens, router])
+  }, [status, session, router])
 
-  if (isLoading) {
+  if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-lg">Loading...</div>
@@ -25,7 +25,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (!tokens) {
+  if (!session) {
     return null // Will redirect to login
   }
 

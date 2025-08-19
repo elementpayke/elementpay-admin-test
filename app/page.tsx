@@ -28,10 +28,10 @@ export default function Home() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Button asChild className="w-full" size="lg">
-                <Link href="/auth/elementpay-login">Sign In</Link>
+                <Link href="/auth/login">Sign In</Link>
               </Button>
               <Button asChild variant="outline" className="w-full" size="lg">
-                <Link href="/auth/elementpay-signup">Create Account</Link>
+                <Link href="/auth/signup">Create Account</Link>
               </Button>
             </div>
             <p className="text-sm text-muted-foreground text-center">

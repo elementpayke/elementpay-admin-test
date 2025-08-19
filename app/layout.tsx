@@ -6,7 +6,6 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
-import { ElementPayAuthProvider } from "@/components/providers/elementpay-auth-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -33,14 +32,12 @@ export default function RootLayout({
           enableSystem 
           disableTransitionOnChange
         >
-          <ElementPayAuthProvider>
-            <AuthProvider>
-              <QueryProvider>
-                {children}
-                <Toaster />
-              </QueryProvider>
-            </AuthProvider>
-          </ElementPayAuthProvider>
+          <AuthProvider>
+            <QueryProvider>
+              {children}
+              <Toaster />
+            </QueryProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

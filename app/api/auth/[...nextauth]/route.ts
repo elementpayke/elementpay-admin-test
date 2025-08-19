@@ -1,7 +1,6 @@
 import NextAuth from "next-auth"
 import type { AuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { getUserByEmail, verifyPassword, updateUserLastLogin } from "@/lib/mock-db"
 import type { User } from "@/lib/types"
 
 export const authOptions: AuthOptions = {
@@ -21,26 +20,43 @@ export const authOptions: AuthOptions = {
           throw new Error("Email and password are required")
         }
 
-        const user = getUserByEmail(credentials.email as string)
+        try {
+          // Authenticate with Element Pay API through our proxy
+          const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/elementpay/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          })
 
-        if (!user) {
-          throw new Error("No user found with this email")
+          if (!response.ok) {
+            const error = await response.text()
+            throw new Error(error || 'Authentication failed')
+          }
+
+          const data = await response.json()
+          
+          console.log('Element Pay proxy response:', JSON.stringify(data, null, 2))
+          
+          // Element Pay returns: { access_token, refresh_token, token_type }
+          if (data.access_token) {
+            return {
+              id: credentials.email, // Use email as ID since Element Pay doesn't provide user details in auth response
+              email: credentials.email,
+              name: credentials.email, // Use email as name for now
+              elementPayToken: data.access_token, // Store the Element Pay token
+            } as User & { elementPayToken: string }
+          }
+          
+          throw new Error('Invalid response from Element Pay - missing access_token')
+        } catch (error) {
+          console.error('Element Pay authentication error:', error)
+          throw new Error(error instanceof Error ? error.message : 'Authentication failed')
         }
-
-        if (!user.emailVerified) {
-          throw new Error("Email not verified. Please check your email for a verification code.")
-        }
-
-        const isValidPassword = await verifyPassword(credentials.password as string, user.password)
-
-        if (!isValidPassword) {
-          throw new Error("Invalid password")
-        }
-
-        // Update last login time
-        updateUserLastLogin(credentials.email as string)
-
-        return { id: user.id, email: user.email, name: user.name } as User
       },
     }),
   ],
@@ -50,6 +66,7 @@ export const authOptions: AuthOptions = {
         token.id = user.id
         token.email = user.email
         token.name = user.name
+        token.elementPayToken = user.elementPayToken // Store Element Pay token
       }
       return token
     },
@@ -58,6 +75,7 @@ export const authOptions: AuthOptions = {
         session.user.id = token.id as string
         session.user.email = token.email as string
         session.user.name = token.name as string
+        session.elementPayToken = token.elementPayToken as string // Add to session
       }
       return session
     },
