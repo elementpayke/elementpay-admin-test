@@ -175,13 +175,17 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         status: string
         message: string
         data: {
-          id: number
-          created_at: string
-          environment: string
-          has_webhook_secret: boolean
-          key: string
-          name: string
-          webhook_url?: string
+          status: string
+          message: string
+          data: {
+            id?: number
+            created_at: string
+            environment: string
+            has_webhook_secret: boolean
+            key: string
+            name: string
+            webhook_url?: string
+          }
         }
       }>(res)
       
@@ -189,17 +193,25 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
       
       // Handle new API response format
       if (response.data) {
+        console.log('API client processing response.data:', JSON.stringify(response.data, null, 2))
+        
+        // Extract the actual data from the nested response
+        const actualData = response.data.data || response.data
+        console.log('Key field value:', actualData.key)
+        console.log('Key exists and not empty:', !!(actualData.key && actualData.key.trim()))
+        
         const result = {
-          id: response.data.id?.toString() || Date.now().toString(),
+          id: actualData.id?.toString() || Date.now().toString(),
           userId: 'current-user',
-          name: response.data.name || input.name, // Fallback to input name
-          key: response.data.key || '',
-          environment: response.data.environment === 'sandbox' ? 'testnet' : (response.data.environment as Environment) || 'testnet',
+          name: actualData.name || input.name, // Fallback to input name
+          key: actualData.key || '', // Use the key directly from the response
+          environment: actualData.environment === 'sandbox' ? 'testnet' : (actualData.environment as Environment) || 'testnet',
           status: 'active' as const,
-          createdAt: response.data.created_at || new Date().toISOString(),
-          webhookUrl: response.data.webhook_url
+          createdAt: actualData.created_at || new Date().toISOString(),
+          webhookUrl: actualData.webhook_url
         }
         console.log('API client returning:', JSON.stringify(result, null, 2))
+        console.log('Result key length:', result.key ? result.key.length : 0)
         return result
       }
       
@@ -268,6 +280,13 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         webhook_secret: webhook.webhookSecret
       }
       
+      // Remove undefined fields
+      Object.keys(requestBody).forEach(key => {
+        if (requestBody[key as keyof UpdateWebhookRequest] === undefined) {
+          delete requestBody[key as keyof UpdateWebhookRequest]
+        }
+      })
+      
       const res = await fetchImpl(`/api/elementpay/api-keys/${id}`, {
         method: 'PATCH',
         headers: {
@@ -277,8 +296,30 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         body: JSON.stringify(requestBody),
       })
       
-      const epKey = await handleResponse<ElementPayApiKey>(res)
-      return convertElementPayKey(epKey)
+      const response = await handleResponse<{
+        success: boolean
+        message: string
+        data: {
+          key_id: number
+          environment: string
+          webhook_url?: string
+          has_webhook_secret: boolean
+          updated_at: string
+        }
+      }>(res)
+      
+      // Convert to our ApiKey format
+      return {
+        id: response.data.key_id.toString(),
+        userId: 'current-user',
+        name: `API Key ${response.data.key_id}`,
+        key: '',
+        environment: response.data.environment === 'sandbox' ? 'testnet' : response.data.environment as Environment,
+        status: 'active' as const,
+        createdAt: response.data.updated_at,
+        webhookUrl: response.data.webhook_url,
+        webhookSecret: response.data.has_webhook_secret ? 'hidden' : undefined,
+      }
     },
 
     /**
