@@ -38,10 +38,19 @@ export function CreateApiKeyDialog({
   const environment: Environment = "testnet"
 
   const handleSubmit = (e: React.FormEvent) => {
+    console.log('CreateApiKeyDialog handleSubmit called')
+    console.log('Form event:', e)
+    console.log('keyName:', keyName)
+    console.log('keyName.trim():', keyName.trim())
+    
     e.preventDefault()
     if (keyName.trim()) {
+      console.log('Calling onCreate with:', { name: keyName.trim(), environment })
       onCreate({ name: keyName.trim(), environment })
       setKeyName("")
+      console.log('onCreate called, keyName cleared')
+    } else {
+      console.log('keyName is empty, not calling onCreate')
     }
   }
 

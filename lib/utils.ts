@@ -26,8 +26,7 @@ export async function apiRequest(
   apiKey?: string
 ) {
   const url = `${API_BASE_URL}${endpoint}`
-  const envHeader = getElementPayEnvironment().active
-  const defaultHeaders: HeadersInit = { 'Content-Type': 'application/json', 'x-elementpay-env': envHeader }
+  const defaultHeaders: HeadersInit = { 'Content-Type': 'application/json' }
   if (apiKey) defaultHeaders['Authorization'] = `Bearer ${apiKey}`
   const config: RequestInit = { ...options, headers: { ...defaultHeaders, ...options.headers } }
   try {

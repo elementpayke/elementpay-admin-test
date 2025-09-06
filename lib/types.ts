@@ -23,6 +23,8 @@ export type ApiKey = {
   environment: Environment
   status: "active" | "revoked"
   createdAt: string
+  webhookUrl?: string
+  webhookSecret?: string
 }
 
 export type ApiKeyWithMasked = ApiKey & {

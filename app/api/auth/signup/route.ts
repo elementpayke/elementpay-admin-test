@@ -1,24 +1,43 @@
 import { NextResponse } from "next/server"
-import { createUser } from "@/lib/mock-db"
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password } = await req.json()
+    const { email, password, role } = await req.json()
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: "Name, email, and password are required" }, { status: 400 })
+    if (!email || !password) {
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    const user = createUser(name, email, password)
+    // Proxy to Element Pay signup endpoint (register)
+    const response = await fetch(`${process.env.ELEMENT_PAY_API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        email, 
+        password,
+        role: role || 'developer'  // Default to developer role
+      }),
+    })
 
-    if (!user) {
-      return NextResponse.json({ error: "User with this email already exists" }, { status: 409 })
+    if (!response.ok) {
+      const error = await response.text()
+      return NextResponse.json({ error: error || "Signup failed" }, { status: response.status })
     }
+
+    const data = await response.json()
 
     return NextResponse.json(
       {
         message: "User created successfully. Please verify your email.",
-        user: { id: user.id, email: user.email, name: user.name },
+        user: { 
+          id: data.id, 
+          email: data.email, 
+          role: data.role,
+          is_active: data.is_active,
+          kyc_verified: data.kyc_verified
+        },
       },
       { status: 201 },
     )

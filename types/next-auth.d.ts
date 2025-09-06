@@ -7,6 +7,7 @@ declare module "next-auth" {
       email: string
       name: string
     }
+    elementPayToken?: string
   }
 
   interface User {
@@ -21,5 +22,6 @@ declare module "next-auth/jwt" {
     id: string
     email: string
     name: string
+    elementPayToken?: string
   }
 }

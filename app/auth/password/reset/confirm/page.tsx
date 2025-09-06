@@ -33,7 +33,11 @@ export default function PasswordResetConfirmPage() {
 
     const passOk = /^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z]).{8,}$/.test(password)
     if (!passOk) {
-      toast({ title: "Weak password", description: "Use 8+ chars incl. number, upper and lower case.", type: "destructive" })
+      toast({ 
+        title: "Weak password", 
+        description: "Use 8+ chars incl. number, upper and lower case.", 
+        variant: "destructive" 
+      })
       setLoading(false)
       return
     }
@@ -41,24 +45,40 @@ export default function PasswordResetConfirmPage() {
     try {
       const trimmedEmail = email.trim()
       const trimmedCode = code.trim()
-      await elementPayAPI.resetPassword({ email: trimmedEmail, reset_code: trimmedCode, new_password: password })
-      toast({ title: "Password updated", description: "You can now log in with your new password." })
+      
+      const response = await fetch("/api/auth/password/reset-confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          email: trimmedEmail, 
+          reset_code: trimmedCode, 
+          new_password: password 
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reset password")
+      }
+
+      toast({ 
+        title: "Password updated", 
+        description: "You can now log in with your new password." 
+      })
       setSuccess(true)
     } catch (err: any) {
       let description = err?.message || "Reset failed"
-      try {
-        const msg: string = String(err?.message || "")
-        const jsonStart = msg.indexOf("{")
-        if (jsonStart >= 0) {
-          const maybeJson = msg.slice(jsonStart)
-          const parsed = JSON.parse(maybeJson)
-          if (parsed?.detail) {
-            description = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail)
-          }
-        }
-      } catch {}
-      if (/invalid reset code/i.test(description)) setCodeError(description)
-      toast({ title: "Reset failed", description, type: "destructive" })
+      if (/invalid reset code/i.test(description)) {
+        setCodeError(description)
+      }
+      toast({ 
+        title: "Reset failed", 
+        description, 
+        variant: "destructive" 
+      })
     } finally {
       setLoading(false)
     }

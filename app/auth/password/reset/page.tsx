@@ -20,11 +20,31 @@ export default function PasswordResetRequestPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      await elementPayAPI.requestPasswordReset({ email })
-      toast({ title: "Reset email sent", description: "Check your inbox for the code." })
+      const response = await fetch("/api/auth/password/reset-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send reset email")
+      }
+
+      toast({ 
+        title: "Reset email sent", 
+        description: "Check your inbox for the reset code." 
+      })
       router.push(`/auth/password/reset/confirm?email=${encodeURIComponent(email)}`)
     } catch (err: any) {
-      toast({ title: "Request failed", description: err.message, type: "destructive" })
+      toast({ 
+        title: "Request failed", 
+        description: err.message, 
+        variant: "destructive" 
+      })
     } finally {
       setLoading(false)
     }
@@ -51,7 +71,7 @@ export default function PasswordResetRequestPage() {
             Already have a code? <Link href="/auth/password/reset/confirm" className="underline">Enter it here</Link>
           </div>
           <div className="mt-2 text-center text-sm text-muted-foreground">
-            Remembered it? <Link href="/auth/elementpay-login" className="underline">Back to login</Link>
+            Remembered it? <Link href="/auth/login" className="underline">Back to login</Link>
           </div>
         </CardContent>
       </Card>
