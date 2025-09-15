@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  elementpay-sandbox-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      # NextAuth Configuration
+      - NEXTAUTH_URL=http://localhost:3000
+      - AUTH_SECRET=${AUTH_SECRET:-your-auth-secret-here}
+      
+      # ElementPay API Configuration
+      - NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE=${NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE:-https://sandbox.elementpay.net/api/v1}
+      - NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE=${NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE:-https://api.elementpay.net/api/v1}
+      - NEXT_PUBLIC_ELEMENTPAY_ENV=${NEXT_PUBLIC_ELEMENTPAY_ENV:-sandbox}
+      
+      # Development Environment
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    
+    # Restart policy for development
+    restart: unless-stopped
+    
+    # Override command for development
+    command: npm run dev
+
+networks:
+  default:
+    name: elementpay-dev-network

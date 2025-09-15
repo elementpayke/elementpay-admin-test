@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable standalone output for Docker optimization
+  output: 'standalone',
+
   webpack: (config) => {
     config.externals.push({
       "node:buffer": "commonjs node:buffer",

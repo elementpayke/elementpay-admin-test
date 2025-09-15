@@ -1,5 +1,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import ResetPasswordForm from "@/components/auth/reset-password-form"
+import { Suspense } from "react"
+
+function ResetPasswordFormFallback() {
+  return (
+    <div className="space-y-4">
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+    </div>
+  )
+}
 
 export default function PasswordResetConfirmPage() {
   return (
@@ -12,7 +23,9 @@ export default function PasswordResetConfirmPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResetPasswordForm />
+          <Suspense fallback={<ResetPasswordFormFallback />}>
+            <ResetPasswordForm />
+          </Suspense>
         </CardContent>
       </Card>
     </div>
