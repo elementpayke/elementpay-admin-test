@@ -50,6 +50,7 @@
     "next-auth": "latest",
     "next-themes": "latest",
     "nodemailer": "latest",
+    "ogl": "^1.0.11",
     "react": "^18",
     "react-day-picker": "latest",
     "react-dom": "^18",

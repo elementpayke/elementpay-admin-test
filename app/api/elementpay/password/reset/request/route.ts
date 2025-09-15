@@ -4,7 +4,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const response = await fetch('https://sandbox.elementpay.net/api/v1/auth/password/reset/request', {
+    // Use live ElementPay API from environment variable
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+    const resetRequestUrl = `${elementPayBaseUrl}/auth/password/reset/request`
+    
+    const response = await fetch(resetRequestUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

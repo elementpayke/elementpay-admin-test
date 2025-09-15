@@ -6,7 +6,11 @@ export async function POST(request: NextRequest) {
     
     console.log('Proxying email verification request for:', body.email)
     
-    const response = await fetch('https://sandbox.elementpay.net/api/v1/auth/verify-email', {
+    // Use live ElementPay API from environment variable
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://api.elementpay.net/api/v1'
+    const verifyUrl = `${elementPayBaseUrl}/auth/verify-email`
+    
+    const response = await fetch(verifyUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

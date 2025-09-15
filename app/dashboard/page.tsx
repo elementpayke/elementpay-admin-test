@@ -40,7 +40,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <EnhancedApiKeyManager />
-        <ApiTester />
+ 
       </main>
     </div>
   )

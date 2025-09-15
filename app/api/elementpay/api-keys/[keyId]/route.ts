@@ -10,7 +10,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { keyId: st
     const { keyId } = params
 
     // Forward request to Element Pay with user's Bearer token
-    const elementPayUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://sandbox.elementpay.net/api/v1'}/api-keys/${keyId}`
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://api.elementpay.net/api/v1'
+    const elementPayUrl = `${elementPayBaseUrl}/api-keys/${keyId}`
     
     const response = await fetch(elementPayUrl, {
       method: 'DELETE',
@@ -46,7 +47,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { keyId: str
     const body = await req.json()
 
     // Forward request to Element Pay webhook endpoint with user's Bearer token
-    const elementPayUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://sandbox.elementpay.net/api/v1'}/api-keys/${keyId}/webhook`
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://api.elementpay.net/api/v1'
+    const elementPayUrl = `${elementPayBaseUrl}/api-keys/${keyId}/webhook`
     
     const response = await fetch(elementPayUrl, {
       method: 'PATCH',

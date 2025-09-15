@@ -1,4 +1,4 @@
-import ElementPayVerifyEmailForm from "@/components/auth/elementpay-verify-email-form"
+import VerifyEmailForm from "@/components/auth/verify-email-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
 
@@ -16,7 +16,7 @@ export default function VerifyEmailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ElementPayVerifyEmailForm />
+          <VerifyEmailForm />
         </CardContent>
       </Card>
     </div>

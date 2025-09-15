@@ -51,7 +51,10 @@ export default function ApiTester() {
   // GET /rates/rates (requires x-api-key)
   const testRatesEndpoint = async () => {
     if (!selectedApiKey) {
-      toast({ title: "API Key Required", description: "Select an API key first", type: "destructive" })
+      sonnerToast.error("API Key Required", {
+        description: "Please select an API key first to test the rates endpoint.",
+        duration: 4000,
+      })
       return
     }
 

@@ -9,7 +9,13 @@ export async function POST(req: Request) {
     }
 
     // Proxy to Element Pay resend verification endpoint
-    const response = await fetch(`${process.env.ELEMENT_PAY_API_BASE_URL}/auth/resend-verification`, {
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+    const resendUrl = `${elementPayBaseUrl}/auth/resend-verification`
+    
+    console.log('Resending verification code for:', email)
+    console.log('Using ElementPay URL:', resendUrl)
+    
+    const response = await fetch(resendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

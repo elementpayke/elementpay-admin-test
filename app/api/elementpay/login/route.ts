@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
       email: body.email, 
       hasPassword: !!body.password,
       passwordLength: body.password?.length,
+      isSandbox: !!body.sandbox,
       bodyKeys: Object.keys(body)
     })
     
@@ -18,9 +19,25 @@ export async function POST(request: NextRequest) {
       password: body.password
     }
     
-    console.log('Sending to Element Pay:', { email: loginPayload.email, hasPassword: !!loginPayload.password })
+    console.log('Sending to Element Pay:', { 
+      email: loginPayload.email, 
+      hasPassword: !!loginPayload.password,
+      sandbox: !!body.sandbox
+    })
     
-    const response = await fetch('https://sandbox.elementpay.net/api/v1/auth/login', {
+    // Choose the correct ElementPay API based on sandbox parameter
+    const isSandbox = body.sandbox === true || body.sandbox === 'true'
+    const elementPayBaseUrl = isSandbox 
+      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
+      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+    
+
+    const loginUrl = `${elementPayBaseUrl}${isSandbox ? '/auth/login' : '/auth/login'}`
+    
+    console.log('Using ElementPay URL:', loginUrl)
+    console.log('Environment:', isSandbox ? 'SANDBOX' : 'LIVE')
+    
+    const response = await fetch(loginUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,8 +68,9 @@ export async function POST(request: NextRequest) {
       
       // For development: If Element Pay is having server issues (500), provide helpful error
       if (response.status === 500) {
-        console.log('Element Pay server error (500) - this could be due to:')
-        console.log('1. Element Pay sandbox server issues')
+        const envType = isSandbox ? 'sandbox' : 'live'
+        console.log(`Element Pay ${envType} server error (500) - this could be due to:`)
+        console.log(`1. Element Pay ${envType} server issues`)
         console.log('2. Invalid request format')
         console.log('3. Database connectivity issues on Element Pay side')
         console.log('4. Authentication service issues')
@@ -60,11 +78,12 @@ export async function POST(request: NextRequest) {
         // Try to provide more specific error information
         const errorMsg = typeof data === 'object' && data.detail ? data.detail : 
                         typeof data === 'string' ? data : 
-                        'Element Pay server error. The sandbox environment may be experiencing issues.'
+                        `Element Pay ${envType} server error. The ${envType} environment may be experiencing issues.`
         
         return NextResponse.json({
           error: errorMsg,
-          hint: "This appears to be a server-side issue with Element Pay. Please try again in a few minutes."
+          hint: `This appears to be a server-side issue with Element Pay's ${envType} environment. Please try again in a few minutes.`,
+          environment: envType
         }, { status: 500 })
       }
       
