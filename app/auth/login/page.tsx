@@ -2,6 +2,17 @@ import LoginForm from "@/components/auth/login-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import Image from "next/image"
+import { Suspense } from "react"
+
+function LoginFormFallback() {
+  return (
+    <div className="space-y-4">
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+    </div>
+  )
+}
 
 export default function LoginPage() {
   return (
@@ -15,7 +26,9 @@ export default function LoginPage() {
           <CardDescription>Sign in to your Element Pay account.</CardDescription>
         </CardHeader>
         <CardContent>
-          <LoginForm />
+          <Suspense fallback={<LoginFormFallback />}>
+            <LoginForm />
+          </Suspense>
           <div className="mt-4 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
             <Link href="/auth/signup" className="underline">

@@ -1,6 +1,16 @@
-import ElementPayVerifyEmailForm from "@/components/auth/elementpay-verify-email-form"
+import VerifyEmailForm from "@/components/auth/verify-email-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
+import { Suspense } from "react"
+
+function VerifyEmailFormFallback() {
+  return (
+    <div className="space-y-4">
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+      <div className="h-10 bg-muted animate-pulse rounded"></div>
+    </div>
+  )
+}
 
 export default function VerifyEmailPage() {
   return (
@@ -16,7 +26,9 @@ export default function VerifyEmailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ElementPayVerifyEmailForm />
+          <Suspense fallback={<VerifyEmailFormFallback />}>
+            <VerifyEmailForm />
+          </Suspense>
         </CardContent>
       </Card>
     </div>

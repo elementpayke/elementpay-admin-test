@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
       }, { status: 401 })
     }
 
-    // Use sandbox URL since environment is determined by the endpoint
-    const elementPayUrl = 'https://sandbox.elementpay.net/api/v1/api-keys'
+    // Use live ElementPay API from environment variable
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://api.elementpay.net/api/v1'
+    const elementPayUrl = `${elementPayBaseUrl}/api-keys`
     
     const response = await fetch(elementPayUrl, {
       method: 'GET',
@@ -126,8 +127,9 @@ export async function POST(req: NextRequest) {
       }, { status: 422 })
     }
     
-    // Use sandbox URL since environment is determined by the endpoint
-    const elementPayUrl = 'https://sandbox.elementpay.net/api/v1/api-keys'
+    // Use live ElementPay API from environment variable
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://api.elementpay.net/api/v1'
+    const elementPayUrl = `${elementPayBaseUrl}/api-keys`
     
     const elementPayBody = {
       name: body.name,

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization')
@@ -13,7 +15,11 @@ export async function GET(request: NextRequest) {
     
     console.log('Proxying user info request')
     
-    const response = await fetch('https://sandbox.elementpay.net/api/v1/auth/me', {
+    // Use live ElementPay API from environment variable
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+    const meUrl = `${elementPayBaseUrl}/auth/me`
+    
+    const response = await fetch(meUrl, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,

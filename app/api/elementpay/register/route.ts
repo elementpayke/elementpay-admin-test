@@ -6,7 +6,13 @@ export async function POST(request: NextRequest) {
     
     console.log('Proxying registration request:', { email: body.email, role: body.role })
     
-    const response = await fetch('https://sandbox.elementpay.net/api/v1/auth/register', {
+    // Use live ElementPay API from environment variable
+    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://api.elementpay.net/api/v1'
+    const registerUrl = `${elementPayBaseUrl}/auth/register`
+    
+    console.log('Using ElementPay URL:', registerUrl)
+    
+    const response = await fetch(registerUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
