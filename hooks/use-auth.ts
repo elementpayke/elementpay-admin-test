@@ -17,19 +17,18 @@ export function useAuth() {
     try {
       await signOut({ 
         redirect: false,
-        callbackUrl: "/auth/login"
+        callbackUrl: "/"
       })
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out.",
       })
-      router.push("/auth/login")
+      router.push("/")
     } catch (error) {
       console.error("Logout error:", error)
       toast({
         title: "Logout Failed",
         description: "There was an error logging you out. Please try again.",
-        variant: "destructive",
       })
     }
   }
