@@ -23,6 +23,9 @@ interface ElementPayApiKey {
 interface CreateElementPayKeyRequest {
   name: string
   environment: 'testnet' | 'mainnet'
+  rotate_existing?: boolean
+  webhook_url?: string
+  webhook_secret?: string
 }
 
 interface UpdateWebhookRequest {
@@ -85,7 +88,10 @@ function convertElementPayKey(epKey: ElementPayApiKey): ApiKey {
 
 export interface CreateApiKeyInput { 
   name: string
-  environment: Environment 
+  environment: Environment
+  rotateExisting?: boolean
+  webhookUrl?: string
+  webhookSecret?: string
 }
 
 export interface UpdateWebhookInput {
@@ -151,8 +157,12 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
       }
 
       // Don't send environment parameter - it's determined by the API endpoint URL
-      const requestBody = {
-        name: input.name
+      const requestBody: CreateElementPayKeyRequest = {
+        name: input.name,
+        environment: 'testnet', // This will be ignored by the API endpoint
+        ...(input.rotateExisting !== undefined && { rotate_existing: input.rotateExisting }),
+        ...(input.webhookUrl && { webhook_url: input.webhookUrl }),
+        ...(input.webhookSecret && { webhook_secret: input.webhookSecret })
       }
       
       const url = '/api/elementpay/api-keys'

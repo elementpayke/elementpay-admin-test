@@ -42,15 +42,33 @@ export default function EnhancedApiKeyManager() {
   })
 
   const createKey = useMutation({
-    mutationFn: async ({ name }: { name: string }) => {
-      console.log('createKey mutation starting with name:', name)
+    mutationFn: async ({ 
+      name, 
+      environment: env, 
+      rotateExisting, 
+      webhookUrl, 
+      webhookSecret 
+    }: { 
+      name: string
+      environment?: Environment
+      rotateExisting?: boolean
+      webhookUrl?: string
+      webhookSecret?: string
+    }) => {
+      console.log('createKey mutation starting with:', { name, env, rotateExisting, webhookUrl, webhookSecret: webhookSecret ? '[REDACTED]' : undefined })
       if (!token) {
         console.error('No token available')
         throw new Error("Not authenticated")
       }
       console.log('Token available, calling client.create')
       try {
-        const result = await client.create({ name, environment }, token)
+        const result = await client.create({ 
+          name, 
+          environment: env || environment,
+          ...(rotateExisting !== undefined && { rotateExisting }),
+          ...(webhookUrl && { webhookUrl }),
+          ...(webhookSecret && { webhookSecret })
+        }, token)
         console.log('client.create succeeded:', JSON.stringify(result, null, 2))
         return result
       } catch (error) {
@@ -89,8 +107,13 @@ export default function EnhancedApiKeyManager() {
       console.log('Setting newKeyForReveal to:', JSON.stringify(keyForReveal, null, 2))
       setNewKeyForReveal(keyForReveal)
       setIsCreateOpen(false)
-      sonnerToast.success("API Key Created Successfully", {
-        description: `"${created.name}" has been generated and is ready to use.`,
+      
+      // Determine the key type for better messaging
+      const hasWebhook = created.webhookUrl || created.webhookSecret
+      const keyType = hasWebhook ? 'WebSocket' : 'REST'
+      
+      sonnerToast.success(`${keyType} API Key Created Successfully`, {
+        description: `"${created.name}" has been generated and is ready to use${hasWebhook ? ' with webhook configuration' : ''}.`,
         duration: 5000,
       })
     },
@@ -333,13 +356,19 @@ export default function EnhancedApiKeyManager() {
       <CreateApiKeyDialog
         isOpen={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        onCreate={({ name }) => {
-          console.log('CreateApiKeyDialog onCreate called with name:', name)
+        onCreate={({ name, environment, rotateExisting, webhookUrl, webhookSecret }) => {
+          console.log('CreateApiKeyDialog onCreate called with:', { name, environment, rotateExisting, webhookUrl, webhookSecret: webhookSecret ? '[REDACTED]' : undefined })
           console.log('createKey object:', createKey)
           console.log('createKey.mutate exists:', typeof createKey.mutate === 'function')
           console.log('About to call createKey.mutate')
           try {
-            createKey.mutate({ name })
+            createKey.mutate({ 
+              name, 
+              environment,
+              ...(rotateExisting !== undefined && { rotateExisting }),
+              ...(webhookUrl && { webhookUrl }),
+              ...(webhookSecret && { webhookSecret })
+            })
             console.log('createKey.mutate called successfully')
           } catch (error) {
             console.error('Error calling createKey.mutate:', error)

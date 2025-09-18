@@ -60,7 +60,7 @@ export default function Home() {
               size="lg" 
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
             >
-              <Link href="/auth/signup" className="flex items-center">
+              <Link href="/auth/login" className="flex items-center">
                 Get Started
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Link>
