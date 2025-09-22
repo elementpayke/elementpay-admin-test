@@ -28,7 +28,9 @@ export default function DashboardHeader() {
         <Image src="/elementpay.png" alt="Element Pay Logo" width={32} height={32} />
         <span>Element Pay</span>
       </Link>
-      <DropdownMenu>
+      
+      <div className="flex items-center gap-4">
+        <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="rounded-full">
             <Avatar>
@@ -57,6 +59,7 @@ export default function DashboardHeader() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   )
 }

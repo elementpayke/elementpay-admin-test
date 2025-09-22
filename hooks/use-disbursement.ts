@@ -31,52 +31,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
   const [isLoadingQuote, setIsLoadingQuote] = useState(false)
   const [recentDisbursements, setRecentDisbursements] = useState<DisbursementOrder[]>([])
 
-  // Fetch exchange rates
-  const fetchRates = useCallback(async () => {
-    setIsLoadingRates(true)
-    try {
-      // Mock API call - replace with actual Element Pay API
-      const response = await fetch('/api/elementpay/rates')
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch rates')
-      }
 
-      const ratesData = await response.json()
-      
-      // Transform API response to our format
-      const transformedRates: Record<Token, ExchangeRate> = {
-        BASE_USDC: {
-          token: "BASE_USDC",
-          rate: ratesData.BASE_USDC || 132.50,
-          lastUpdated: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes
-        },
-        ETH: {
-          token: "ETH",
-          rate: ratesData.ETH || 262000,
-          lastUpdated: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-        },
-        BTC: {
-          token: "BTC",
-          rate: ratesData.BTC || 4350000,
-          lastUpdated: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-        },
-      }
-
-      setRates(transformedRates)
-    } catch (error) {
-      console.error('Failed to fetch rates:', error)
-      toast({
-        title: "Rate Fetch Failed",
-        description: "Unable to fetch latest exchange rates",
-      })
-    } finally {
-      setIsLoadingRates(false)
-    }
-  }, [toast])
 
   // Get quote for disbursement
   const getQuote = useCallback(async (
@@ -200,7 +155,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
   const fetchRecentDisbursements = useCallback(async () => {
     try {
       const response = await makeAuthenticatedRequest(
-        '/api/elementpay/orders/me?order_type=1&limit=10',
+        '/orders/me?order_type=1&limit=10',
         { method: 'GET' }
       )
 
@@ -287,15 +242,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     }
   }, [makeAuthenticatedRequest])
 
-  // Auto-refresh rates
-  useEffect(() => {
-    fetchRates()
-    
-    if (autoRefreshRates) {
-      const interval = setInterval(fetchRates, refreshInterval * 1000)
-      return () => clearInterval(interval)
-    }
-  }, [fetchRates, autoRefreshRates, refreshInterval])
+ 
 
   // Fetch recent disbursements on mount
   useEffect(() => {
@@ -304,30 +251,16 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
 
   return {
     // State
-    rates,
-    isLoadingRates,
     currentQuote,
     isLoadingQuote,
     recentDisbursements,
 
     // Actions
-    fetchRates,
     getQuote,
     createDisbursement,
     fetchRecentDisbursements,
     getOrderStatus,
 
-    // Utilities
-    getRateForToken: (token: Token) => rates[token]?.rate || 0,
-    isRateExpired: (token: Token) => {
-      const rate = rates[token]
-      return rate ? new Date(rate.expiresAt) < new Date() : true
-    },
-    getTimeToRateExpiry: (token: Token) => {
-      const rate = rates[token]
-      if (!rate) return 0
-      return Math.max(0, new Date(rate.expiresAt).getTime() - Date.now())
-    },
   }
 }
 

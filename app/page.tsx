@@ -58,10 +58,11 @@ export default function Home() {
             <Button 
               asChild 
               size="lg" 
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+              className="bg-purple-600 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
             >
               <Link href="/auth/login" className="flex items-center">
-                Get Started
+                <Globe className="w-5 h-5 mr-2" />
+                Go Live
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Link>
             </Button>
@@ -69,11 +70,11 @@ export default function Home() {
               asChild 
               variant="outline" 
               size="lg"
-              className="border-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-8 py-4 text-lg font-semibold transition-all duration-200"
+              className="border-2 border-blue-200 text-blue-600 hover:bg-blue-50 px-8 py-4 text-lg font-semibold transition-all duration-200"
             >
               <Link href="/auth/login?sandbox=true" className="flex items-center">
                 <Code className="w-5 h-5 mr-2" />
-                Try Our Sandbox
+                Try Sandbox
               </Link>
             </Button>
           </div>

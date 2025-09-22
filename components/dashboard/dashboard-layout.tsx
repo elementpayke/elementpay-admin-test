@@ -8,16 +8,12 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { useAuth } from '@/hooks/use-auth'
-import { useWallet } from '@/hooks/use-wallet'
 import {
   LayoutDashboard,
   CreditCard,
   ArrowLeftRight,
-  TrendingUp,
-  Shield,
   Menu,
   LogOut,
-  Wallet,
   User,
   Settings,
 } from 'lucide-react'
@@ -32,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import EnvironmentBadgeDropdown from '@/components/dashboard/environment-badge-dropdown'
 
 const navigation = [
   {
@@ -52,18 +49,6 @@ const navigation = [
     icon: ArrowLeftRight,
     description: 'Order history and creation',
   },
-  {
-    name: 'Disbursement',
-    href: '/dashboard/disbursement',
-    icon: TrendingUp,
-    description: 'Pay with crypto via M-PESA',
-  },
-  {
-    name: 'KYC',
-    href: '/dashboard/kyc',
-    icon: Shield,
-    description: 'Verification status',
-  },
 ]
 
 interface DashboardLayoutProps {
@@ -74,7 +59,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
   const { user, logout } = useAuth()
-  const { isConnected, address, getShortAddress, connectWallet, disconnectWallet } = useWallet()
 
   const NavContent = () => (
     <div className="flex h-full flex-col">
@@ -125,36 +109,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         })}
       </nav>
 
-      {/* Wallet Connection Status */}
-      <div className="border-t p-4 space-y-2">
-        <div className="text-sm font-medium text-muted-foreground">Wallet Status</div>
-        {isConnected && address ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Wallet className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-mono">{getShortAddress()}</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={disconnectWallet}
-              className="h-7 text-xs"
-            >
-              Disconnect
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => connectWallet()}
-            className="w-full"
-          >
-            <Wallet className="h-4 w-4 mr-2" />
-            Connect Wallet
-          </Button>
-        )}
-      </div>
     </div>
   )
 
@@ -197,28 +151,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
           {/* User Menu */}
           <div className="flex items-center space-x-4">
+            {/* Environment Badge Dropdown */}
+            <EnvironmentBadgeDropdown />
+            
             {/* Theme Toggle */}
             <ThemeToggle />
             
-            {/* Wallet Status Badge */}
-            {isConnected ? (
-              <Badge variant="outline" className="hidden sm:flex">
-                <Wallet className="h-3 w-3 mr-1" />
-                Connected
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="hidden sm:flex">
-                <Wallet className="h-3 w-3 mr-1" />
-                Disconnected
-              </Badge>
-            )}
 
             {/* User Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.avatar} alt={user?.name} />
+                    <AvatarImage src="/placeholder-user.jpg" alt={user?.name} />
                     <AvatarFallback>
                       {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
                     </AvatarFallback>

@@ -46,11 +46,11 @@ export type OrderType = 0 | 1 // 0 for onramp, 1 for offramp
 
 export type CashoutType = "PHONE" | "TILL" | "PAYBILL"
 
-export type OrderStatus = "pending" | "processing" | "settled" | "failed" | "cancelled"
+export type OrderStatus = "PENDING" | "PROCESSING" | "SETTLED" | "FAILED" | "CANCELLED" | "COMPLETED" | "SETTLED_UNVERIFIED" | "REFUNDED"
 
 export type Currency = "KES"
 
-export type Token = "BASE_USDC" | "ETH" | "BTC"
+export type Token = "BASE_USDC" | "ETH" | "BTC" | "BASE_USDC(Testnet)"
 
 export type FiatPayload = {
   amount_fiat: number
@@ -72,6 +72,27 @@ export type OrderCreatePayload = {
   fiat_payload: FiatPayload
 }
 
+// API response order type
+export type ApiOrder = {
+  order_id: string
+  status: OrderStatus
+  amount_crypto: number
+  amount_fiat: number
+  currency: Currency
+  exchange_rate: number
+  token: string
+  file_id?: string
+  invoice_id?: string
+  phone_number: string
+  creation_transaction_hash?: string
+  settlement_transaction_hash?: string
+  order_type: "OnRamp" | "OffRamp"
+  wallet_address: string
+  created_at: string
+  updated_at?: string
+}
+
+// Internal Order type for frontend use
 export type Order = {
   id: string
   user_address: string

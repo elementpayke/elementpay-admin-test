@@ -2,12 +2,14 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { EnvironmentToggle, EnvironmentIndicator } from "@/components/ui/environment-toggle"
+import { useEnvironment } from "@/hooks/use-environment"
 import { toast as sonnerToast } from "sonner"
 
 export default function SignupForm() {
@@ -15,7 +17,20 @@ export default function SignupForm() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { environment, isSandbox, switchToSandbox, switchToLive } = useEnvironment()
+
+  useEffect(() => {
+    const sandboxParam = searchParams.get('sandbox')
+    if (sandboxParam === 'true') {
+      switchToSandbox()
+      sonnerToast.info("Sandbox Mode", {
+        description: "You're signing up for ElementPay's sandbox environment.",
+        duration: 5000,
+      })
+    }
+  }, [searchParams, switchToSandbox])
   
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,7 +82,8 @@ export default function SignupForm() {
         body: JSON.stringify({ 
           email: email.trim().toLowerCase(), 
           password: password.trim(),
-          role: "developer" // Default role
+          role: "developer", // Default role
+          sandbox: environment === 'sandbox'
         }),
       })
 
@@ -137,6 +153,36 @@ export default function SignupForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Environment Toggle */}
+      <div className="flex justify-center mb-4">
+        <EnvironmentToggle
+          variant="badge-buttons"
+          size="md"
+          showLabels={true}
+          showIcons={true}
+          disabled={isLoading}
+        />
+      </div>
+
+      {/* Environment Info Banner */}
+      {isSandbox && (
+        <div className="bg-blue-50 border border-blue-200 text-center rounded-lg p-3 mb-4">
+         
+          <p className="text-xs text-blue-600">
+            You're creating a sandbox account for testing and development.
+          </p>
+        </div>
+      )}
+
+      {!isSandbox && (
+        <div className="bg-green-50 border border-green-200 text-center rounded-lg p-3 mb-4">
+          
+          <p className="text-xs text-green-600">
+            You're creating a live production account.
+          </p>
+        </div>
+      )}
+
       <div>
         <Label htmlFor="email">Email</Label>
         <Input
@@ -159,9 +205,16 @@ export default function SignupForm() {
           onChange={(e) => setPassword(e.target.value)}
           disabled={isLoading}
         />
+        <p className="text-xs text-muted-foreground mt-1">
+          Password must be at least 8 characters long.
+        </p>
       </div>
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Signing up..." : "Sign Up"}
+      <Button 
+        type="submit" 
+        className={`w-full ${isSandbox ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`} 
+        disabled={isLoading}
+      >
+        {isLoading ? "Creating Account..." : isSandbox ? "Sign Up for Sandbox" : "Sign Up for Live"}
       </Button>
     </form>
   )

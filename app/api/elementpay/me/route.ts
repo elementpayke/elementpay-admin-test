@@ -15,8 +15,13 @@ export async function GET(request: NextRequest) {
     
     console.log('Proxying user info request')
     
-    // Use live ElementPay API from environment variable
-    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+    // Get environment from query parameter or default to live for user data
+    const { searchParams } = new URL(request.url)
+    const isSandbox = searchParams.get('sandbox') === 'true'
+    const elementPayBaseUrl = isSandbox 
+      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
+      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+    
     const meUrl = `${elementPayBaseUrl}/auth/me`
     
     const response = await fetch(meUrl, {

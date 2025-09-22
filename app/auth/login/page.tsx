@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Suspense } from "react"
 
+
 function LoginFormFallback() {
   return (
     <div className="space-y-4">
@@ -20,7 +21,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
+            <Link href="/" className="cursor-pointer"> 
             <Image src="/elementpay.png" alt="Element Pay Logo" width={48} height={48} />
+            </Link>
           </div>
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
           <CardDescription>Sign in to your Element Pay account.</CardDescription>

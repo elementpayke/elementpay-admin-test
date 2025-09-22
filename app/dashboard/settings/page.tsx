@@ -4,7 +4,6 @@ import { useState } from "react"
 import AuthGuard from "@/components/auth/auth-guard"
 import DashboardLayout from "@/components/dashboard/dashboard-layout"
 import { useAuth } from "@/hooks/use-auth"
-import { useWallet } from "@/hooks/use-wallet"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +21,6 @@ import {
   Smartphone,
   Mail,
   Key,
-  Wallet,
   AlertTriangle,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
@@ -30,7 +28,6 @@ import { useTheme } from "next-themes"
 
 export default function SettingsPage() {
   const { user } = useAuth()
-  const { isConnected, address } = useWallet()
   const { theme, setTheme } = useTheme()
   const { toast } = useToast()
 
@@ -77,11 +74,10 @@ export default function SettingsPage() {
           </div>
 
           <Tabs defaultValue="general" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
-              <TabsTrigger value="wallet">Wallet</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6">
@@ -380,91 +376,6 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="wallet" className="space-y-6">
-              {/* Wallet Connection */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Wallet className="h-5 w-5" />
-                    <span>Wallet Connection</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Manage your connected wallet settings
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {isConnected && address ? (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="flex items-center space-x-2">
-                          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-green-800">Wallet Connected</span>
-                        </div>
-                        <div className="mt-2 font-mono text-sm text-green-700">
-                          {address}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Network</Label>
-                        <Select defaultValue="base">
-                          <SelectTrigger className="w-48">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="base">Base Network</SelectItem>
-                            <SelectItem value="ethereum">Ethereum</SelectItem>
-                            <SelectItem value="sepolia">Sepolia Testnet</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  ) : (
-                    <Alert>
-                      <Wallet className="h-4 w-4" />
-                      <AlertDescription>
-                        No wallet connected. Connect your wallet to access trading features.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Transaction Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Transaction Settings</CardTitle>
-                  <CardDescription>
-                    Configure your transaction preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Default Gas Price</Label>
-                    <Select defaultValue="standard">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="slow">Slow (Lower fees)</SelectItem>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="fast">Fast (Higher fees)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Transaction Confirmations</Label>
-                      <div className="text-sm text-muted-foreground">
-                        Show transaction confirmation dialogs
-                      </div>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
           </Tabs>
         </div>
       </DashboardLayout>

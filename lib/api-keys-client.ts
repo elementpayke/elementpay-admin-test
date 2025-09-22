@@ -119,9 +119,10 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         throw new Error('User authentication token is required')
       }
 
-      // Don't send environment parameter - it's determined by the API endpoint URL
-      const url = '/api/elementpay/api-keys'
-        
+      // Pass environment as query parameter to the API endpoint
+      const isSandbox = environment === 'testnet' || environment === 'sandbox'
+      const url = `/api/elementpay/api-keys?sandbox=${isSandbox}`
+
       const res = await fetchImpl(url, {
         headers: {
           ...DEFAULT_HEADERS,
@@ -165,7 +166,9 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         ...(input.webhookSecret && { webhook_secret: input.webhookSecret })
       }
       
-      const url = '/api/elementpay/api-keys'
+      // Pass environment as query parameter to the API endpoint
+      const isSandbox = input.environment === 'testnet' || input.environment === 'sandbox'
+      const url = `/api/elementpay/api-keys?sandbox=${isSandbox}`
       console.log('Making POST request to:', url)
       console.log('Request body:', JSON.stringify(requestBody))
       console.log('Headers:', { ...DEFAULT_HEADERS, 'Authorization': `Bearer ${userToken ? 'present' : 'missing'}` })

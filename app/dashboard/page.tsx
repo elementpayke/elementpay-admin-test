@@ -3,7 +3,6 @@
 import AuthGuard from "@/components/auth/auth-guard"
 import DashboardLayout from "@/components/dashboard/dashboard-layout"
 import { useAuth } from "@/hooks/use-auth"
-import { useWallet } from "@/hooks/use-wallet"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +11,6 @@ import {
   CreditCard,
   DollarSign,
   TrendingUp,
-  Wallet,
   ArrowUpRight,
   Clock,
   CheckCircle,
@@ -56,7 +54,6 @@ const mockRecentTransactions = [
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const { isConnected, address, getShortAddress } = useWallet()
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -85,22 +82,6 @@ export default function DashboardPage() {
           </p>
         </div>
 
-          {/* Wallet Status Banner */}
-          {!isConnected && (
-            <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/10">
-              <CardHeader>
-                <div className="flex items-center space-x-2">
-                  <Wallet className="h-5 w-5 text-yellow-600" />
-                  <CardTitle className="text-yellow-800 dark:text-yellow-200">
-                    Wallet Not Connected
-                  </CardTitle>
-                </div>
-                <CardDescription className="text-yellow-700 dark:text-yellow-300">
-                  Connect your wallet to create orders and manage transactions.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          )}
 
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

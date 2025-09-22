@@ -11,27 +11,35 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { EnvironmentToggle, EnvironmentIndicator } from "@/components/ui/environment-toggle"
+import { useEnvironment } from "@/hooks/use-environment"
 import { toast as sonnerToast } from "sonner"
 
 export default function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [isSandbox, setIsSandbox] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { environment, isSandbox, switchToSandbox, switchToLive } = useEnvironment()
 
   useEffect(() => {
     const sandboxParam = searchParams.get('sandbox')
     if (sandboxParam === 'true') {
-      setIsSandbox(true)
+      switchToSandbox()
       sonnerToast.info("Sandbox Mode", {
         description: "You're accessing ElementPay's sandbox environment for testing.",
         duration: 5000,
       })
+    } else {
+      switchToLive()
+      sonnerToast.info("Live Mode", {
+        description: "You're accessing ElementPay's live environment for production.",
+        duration: 5000,
+      })
     }
-  }, [searchParams])
+  }, [searchParams, switchToSandbox])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,7 +65,7 @@ export default function LoginForm() {
         redirect: false,
         email: email.trim().toLowerCase(),
         password: password.trim(),
-        sandbox: isSandbox ? 'true' : 'false',
+        sandbox: environment === 'sandbox' ? 'true' : 'false',
       })
 
       // Dismiss loading toast
@@ -139,15 +147,32 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Environment Toggle */}
+      <div className="flex justify-center mb-4">
+        <EnvironmentToggle
+          variant="badge-buttons"
+          size="md"
+          showLabels={true}
+          showIcons={true}
+          disabled={isLoading}
+        />
+      </div>
+
+      {/* Environment Info Banner */}
       {isSandbox && (
         <div className="bg-blue-50 border border-blue-200 text-center rounded-lg p-3 mb-4">
-          <div className="flex flex-col items-center gap-2 mb-2">
-           
-            <span className="text-sm text-blue-700 font-medium">Testing Environment</span>
-            
-          </div>
+          
           <p className="text-xs text-blue-600">
-            You're logging into ElementPay's console for testing.
+            You're logging into ElementPay's sandbox console for testing and development.
+          </p>
+        </div>
+      )}
+
+      {!isSandbox && (
+        <div className="bg-green-50 border border-green-200 text-center rounded-lg p-3 mb-4">
+        
+          <p className="text-xs text-green-600">
+            You're logging into ElementPay's live production console.
           </p>
         </div>
       )}
@@ -177,10 +202,10 @@ export default function LoginForm() {
       </div>
       <Button 
         type="submit" 
-        className={`w-full ${isSandbox ? 'bg-blue-600 hover:bg-blue-700' : ''}`} 
+        className={`w-full ${isSandbox ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`} 
         disabled={isLoading}
       >
-        {isLoading ? "Logging in..." : isSandbox ? "Login to Sandbox" : "Login"}
+        {isLoading ? "Logging in..." : isSandbox ? "Login to Sandbox" : "Login to Live"}
       </Button>
       <div className="text-center text-sm">
         <Link
