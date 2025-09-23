@@ -54,29 +54,29 @@ export default function EnhancedApiKeyManager() {
     mutationFn: async ({
       name,
       environment: env,
-      rotateExisting,
-      webhookUrl,
-      webhookSecret
+      rotate_existing,
+      webhook_url,
+      webhook_secret
     }: {
       name: string
       environment?: "testnet" | "mainnet"
-      rotateExisting?: boolean
-      webhookUrl?: string
-      webhookSecret?: string
+      rotate_existing?: boolean
+      webhook_url?: string
+      webhook_secret?: string
     }) => {
-      console.log('createKey mutation starting with:', { name, env, rotateExisting, webhookUrl, webhookSecret: webhookSecret ? '[REDACTED]' : undefined })
+      console.log('createKey mutation starting with:', { name, env, rotate_existing, webhook_url, webhook_secret: webhook_secret ? '[REDACTED]' : undefined })
       if (!token) {
         console.error('No token available')
         throw new Error("Not authenticated")
       }
       console.log('Token available, calling client.create')
       try {
-        const result = await client.create({ 
-          name, 
+        const result = await client.create({
+          name,
           environment: env || environment,
-          ...(rotateExisting !== undefined && { rotateExisting }),
-          ...(webhookUrl && { webhookUrl }),
-          ...(webhookSecret && { webhookSecret })
+          rotateExisting: rotate_existing,
+          webhookUrl: webhook_url,
+          webhookSecret: webhook_secret
         }, token)
         console.log('client.create succeeded:', JSON.stringify(result, null, 2))
         return result
@@ -368,18 +368,18 @@ export default function EnhancedApiKeyManager() {
       <CreateApiKeyDialog
         isOpen={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        onCreate={({ name, environment, rotateExisting, webhookUrl, webhookSecret }) => {
-          console.log('CreateApiKeyDialog onCreate called with:', { name, environment, rotateExisting, webhookUrl, webhookSecret: webhookSecret ? '[REDACTED]' : undefined })
+        onCreate={({ name, environment, rotate_existing, webhook_url, webhook_secret }) => {
+          console.log('CreateApiKeyDialog onCreate called with:', { name, environment, rotate_existing, webhook_url, webhook_secret: webhook_secret ? '[REDACTED]' : undefined })
           console.log('createKey object:', createKey)
           console.log('createKey.mutate exists:', typeof createKey.mutate === 'function')
           console.log('About to call createKey.mutate')
           try {
-            createKey.mutate({ 
-              name, 
+            createKey.mutate({
+              name,
               environment,
-              ...(rotateExisting !== undefined && { rotateExisting }),
-              ...(webhookUrl && { webhookUrl }),
-              ...(webhookSecret && { webhookSecret })
+              rotate_existing,
+              webhook_url,
+              webhook_secret
             })
             console.log('createKey.mutate called successfully')
           } catch (error) {

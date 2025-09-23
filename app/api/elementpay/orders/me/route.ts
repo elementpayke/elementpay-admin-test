@@ -73,13 +73,27 @@ export async function GET(req: NextRequest) {
     const result = await response.json()
     console.log('Element Pay orders response:', JSON.stringify(result, null, 2))
 
-    // Handle Element Pay API response format: { status: "success", message: "...", data: [...] }
-    if (result.status === "success" && result.data && Array.isArray(result.data)) {
-      console.log('Returning orders:', result.data.length, 'orders found')
-      return NextResponse.json(result)
+    // Handle Element Pay API response format
+    // ElementPay returns: { status: "success", data: { orders: [...], total: N, limit: N, offset: N, has_more: boolean } }
+    if (result.status === "success" && result.data) {
+      // Check if data has orders array (paginated response)
+      if (result.data.orders && Array.isArray(result.data.orders)) {
+        console.log('Returning orders:', result.data.orders.length, 'orders found')
+        return NextResponse.json({
+          status: "success",
+          message: result.message || "Orders fetched successfully",
+          data: result.data.orders  // Extract orders array from nested structure
+        })
+      }
+      
+      // Check if data is directly an array (non-paginated response)
+      if (Array.isArray(result.data)) {
+        console.log('Returning orders:', result.data.length, 'orders found')
+        return NextResponse.json(result)
+      }
     }
 
-    // Fallback for different response formats
+    // Fallback for other response formats
     if (result.data && Array.isArray(result.data)) {
       return NextResponse.json({
         status: "success",

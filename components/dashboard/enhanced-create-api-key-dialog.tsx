@@ -22,12 +22,12 @@ import type { Environment } from "@/lib/types"
 interface CreateApiKeyDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (data: { 
+  onCreate: (data: {
     name: string
     environment: Environment
-    rotateExisting?: boolean
-    webhookUrl?: string
-    webhookSecret?: string
+    rotate_existing?: boolean
+    webhook_url?: string
+    webhook_secret?: string
   }) => void
   isCreating: boolean
   defaultEnvironment?: Environment
@@ -127,14 +127,10 @@ export function CreateApiKeyDialog({
       return
     }
     
-    // Validate webhook fields if websocket is selected and webhook is enabled
-    if (apiType === 'websocket' && enableWebhook) {
-      if (!webhookUrl.trim()) {
-        console.log('webhook URL is required for websocket with webhook enabled')
-        return
-      }
+    // Validate webhook fields if webhook URL is provided
+    if (webhookUrl.trim()) {
       if (!webhookSecret.trim()) {
-        console.log('webhook secret is required for websocket with webhook enabled')
+        console.log('webhook secret is required when webhook URL is provided')
         return
       }
       if (passwordStrength.score < 75) {
@@ -146,11 +142,9 @@ export function CreateApiKeyDialog({
     const createData = {
       name: keyName.trim(),
       environment,
-      ...(rotateExisting && { rotateExisting }),
-      ...(apiType === 'websocket' && enableWebhook && {
-        webhookUrl: webhookUrl.trim(),
-        webhookSecret: webhookSecret.trim()
-      })
+      rotate_existing: rotateExisting,
+      ...(webhookUrl.trim() && { webhook_url: webhookUrl.trim() }),
+      ...(webhookSecret.trim() && { webhook_secret: webhookSecret.trim() })
     }
     
     console.log('Calling onCreate with:', createData)
@@ -160,14 +154,13 @@ export function CreateApiKeyDialog({
   // Form validation
   const isFormValid = useMemo(() => {
     if (!keyName.trim()) return false
-    
-    if (apiType === 'websocket' && enableWebhook) {
-      if (!webhookUrl.trim() || !webhookSecret.trim()) return false
-      if (passwordStrength.score < 75) return false
+
+    if (webhookUrl.trim()) {
+      if (!webhookSecret.trim() || passwordStrength.score < 75) return false
     }
-    
+
     return true
-  }, [keyName, apiType, enableWebhook, webhookUrl, webhookSecret, passwordStrength.score])
+  }, [keyName, webhookUrl, webhookSecret, passwordStrength.score])
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>

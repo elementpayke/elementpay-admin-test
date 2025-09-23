@@ -11,10 +11,14 @@ import { Label } from "@/components/ui/label"
 import { EnvironmentToggle, EnvironmentIndicator } from "@/components/ui/environment-toggle"
 import { useEnvironment } from "@/hooks/use-environment"
 import { toast as sonnerToast } from "sonner"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function SignupForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -38,9 +42,9 @@ export default function SignupForm() {
     setIsLoading(true)
 
     // Basic validation
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
       sonnerToast.error("Missing Information", {
-        description: "Please enter both email and password.",
+        description: "Please fill in all required fields.",
         duration: 4000,
       })
       setIsLoading(false)
@@ -62,6 +66,16 @@ export default function SignupForm() {
     if (password.length < 8) {
       sonnerToast.error("Password Too Short", {
         description: "Password must be at least 8 characters long.",
+        duration: 4000,
+      })
+      setIsLoading(false)
+      return
+    }
+
+    // Confirm password validation
+    if (password !== confirmPassword) {
+      sonnerToast.error("Passwords Don't Match", {
+        description: "Please ensure both password fields match.",
         duration: 4000,
       })
       setIsLoading(false)
@@ -197,17 +211,63 @@ export default function SignupForm() {
       </div>
       <div>
         <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={isLoading}
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            onClick={() => setShowPassword(!showPassword)}
+            disabled={isLoading}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            )}
+          </button>
+        </div>
         <p className="text-xs text-muted-foreground mt-1">
           Password must be at least 8 characters long.
         </p>
+      </div>
+      <div>
+        <Label htmlFor="confirmPassword">Confirm Password</Label>
+        <div className="relative">
+          <Input
+            id="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={isLoading}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            disabled={isLoading}
+          >
+            {showConfirmPassword ? (
+              <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            )}
+          </button>
+        </div>
+        {confirmPassword && password !== confirmPassword && (
+          <p className="text-xs text-red-500 mt-1">
+            Passwords do not match.
+          </p>
+        )}
       </div>
       <Button 
         type="submit" 
