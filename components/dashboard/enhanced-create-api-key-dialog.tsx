@@ -192,54 +192,13 @@ export function CreateApiKeyDialog({
               />
             </div>
 
-            {/* API Type Selection */}
-            <div className="space-y-3">
-              <Label>API Type</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <div 
-                  className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                    apiType === 'rest' 
-                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => {
-                    setApiType('rest')
-                    setEnableWebhook(false)
-                  }}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Globe2 className={`h-5 w-5 ${apiType === 'rest' ? 'text-indigo-600' : 'text-gray-500'}`} />
-                    <div>
-                      <div className="font-medium">REST API</div>
-                      <p className="text-sm text-muted-foreground">Standard HTTP requests</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div 
-                  className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                    apiType === 'websocket' 
-                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/20' 
-                      : 'border-gray-50 hover:border-gray-100'
-                  }`}
-                  onClick={() => setApiType('websocket')}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Zap className={`h-5 w-5 ${apiType === 'websocket' ? 'text-purple-600' : 'text-gray-500'}`} />
-                    <div>
-                      <div className="font-medium">WebSocket</div>
-                      <p className="text-sm text-muted-foreground">Real-time connections</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+           
 
             {/* WebSocket Configuration */}
-            {apiType === 'websocket' && (
+            {(
               <div className="space-y-4 border rounded-lg p-4 bg-purple-50/50 dark:bg-purple-950/10">
                 
-                
+                <h3>Webhook Configuration(Optional)</h3>
                 
                   <div className="space-y-4 border-t pt-4">
                     {/* Rotate Existing Option */}

@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     if (offset) params.set('offset', offset)
 
     const queryString = params.toString()
-    const elementPayUrl = `${elementPayBaseUrl}/orders/me${queryString ? `?${queryString}` : ''}`
+    const elementPayUrl = `${elementPayBaseUrl}/users/me/orders${queryString ? `?${queryString}` : ''}`
 
     console.log('Element Pay Orders URL:', elementPayUrl)
 
