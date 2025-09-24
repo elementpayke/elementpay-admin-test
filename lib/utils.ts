@@ -19,6 +19,7 @@ export function getElementPayEnvironment() {
   }
 }
 
+
 // Local proxy base (relative)
 export const API_BASE_URL = "/api/elementpay"
 
