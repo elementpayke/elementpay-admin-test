@@ -1,4 +1,5 @@
 import type { ApiKey, Environment } from "./types"
+import { getCurrentEnvironment } from "./api-config"
 
 /**
  * Element Pay API Keys client using user authentication
@@ -33,8 +34,19 @@ interface UpdateWebhookRequest {
   webhook_secret?: string
 }
 
-const DEFAULT_HEADERS: HeadersInit = { 
+const DEFAULT_HEADERS: HeadersInit = {
   'Content-Type': 'application/json'
+}
+
+/**
+ * Get headers with current environment
+ */
+function getHeadersWithEnvironment(additionalHeaders?: HeadersInit): HeadersInit {
+  return {
+    ...DEFAULT_HEADERS,
+    'x-elementpay-environment': getCurrentEnvironment(),
+    ...additionalHeaders
+  }
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -124,10 +136,9 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
       const url = `/api/elementpay/api-keys?sandbox=${isSandbox}`
 
       const res = await fetchImpl(url, {
-        headers: {
-          ...DEFAULT_HEADERS,
+        headers: getHeadersWithEnvironment({
           'Authorization': `Bearer ${userToken}`
-        }
+        })
       })
       
       const response = await handleResponse<{
@@ -175,10 +186,9 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
       
       const res = await fetchImpl(url, {
         method: 'POST',
-        headers: {
-          ...DEFAULT_HEADERS,
+        headers: getHeadersWithEnvironment({
           'Authorization': `Bearer ${userToken}`
-        },
+        }),
         body: JSON.stringify(requestBody),
       })
       
@@ -263,12 +273,11 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         throw new Error('User authentication token is required')
       }
 
-      const res = await fetchImpl(`/api/elementpay/api-keys/${id}`, { 
+      const res = await fetchImpl(`/api/elementpay/api-keys/${id}`, {
         method: 'DELETE',
-        headers: {
-          ...DEFAULT_HEADERS,
+        headers: getHeadersWithEnvironment({
           'Authorization': `Bearer ${userToken}`
-        }
+        })
       })
       
       if (!res.ok) {

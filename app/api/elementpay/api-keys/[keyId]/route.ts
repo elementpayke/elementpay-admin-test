@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
+export const dynamic = 'force-dynamic'
+
 export async function DELETE(req: NextRequest, { params }: { params: { keyId: string } }) {
   try {
     const authHeader = req.headers.get('Authorization')

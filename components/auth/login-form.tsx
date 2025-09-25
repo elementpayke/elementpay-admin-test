@@ -120,10 +120,8 @@ export default function LoginForm() {
           description: "Welcome back! Redirecting to dashboard...",
           duration: 2000,
         })
-        // Use window.location for a clean redirect
-        setTimeout(() => {
-          window.location.href = "/dashboard"
-        }, 1000)
+        // Immediate redirect to dashboard
+        router.push("/dashboard")
       } else {
         sonnerToast.error("Login Failed", {
           description: "An unexpected error occurred. Please try again.",

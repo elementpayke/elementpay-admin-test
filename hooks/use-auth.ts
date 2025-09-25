@@ -1,6 +1,7 @@
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
+import { useCallback } from "react"
 
 export function useAuth() {
   const { data: session, status, update } = useSession()
@@ -13,9 +14,9 @@ export function useAuth() {
   const elementPayToken = session?.elementPayToken
   const userProfile = session?.userProfile
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
-      await signOut({ 
+      await signOut({
         redirect: false,
         callbackUrl: "/"
       })
@@ -31,21 +32,21 @@ export function useAuth() {
         description: "There was an error logging you out. Please try again.",
       })
     }
-  }
+  }, [toast, router])
 
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
     try {
       await update()
     } catch (error) {
       console.error("Session refresh error:", error)
     }
-  }
+  }, [update])
 
   // Check if token needs refresh or has errors
   const hasTokenError = session?.error === 'RefreshTokenError'
 
   // Helper to make authenticated API calls
-  const makeAuthenticatedRequest = async (url: string, options: RequestInit = {}) => {
+  const makeAuthenticatedRequest = useCallback(async (url: string, options: RequestInit = {}) => {
     if (!elementPayToken) {
       throw new Error('No authentication token available')
     }
@@ -75,7 +76,7 @@ export function useAuth() {
     }
 
     return response
-  }
+  }, [elementPayToken, hasTokenError, refreshSession, session?.elementPayToken])
 
   return {
     // Session state

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerBaseUrl } from '@/lib/api-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,12 +16,8 @@ export async function GET(request: NextRequest) {
     
     console.log('Proxying user info request')
     
-    // Get environment from query parameter or default to live for user data
-    const { searchParams } = new URL(request.url)
-    const isSandbox = searchParams.get('sandbox') === 'true'
-    const elementPayBaseUrl = isSandbox 
-      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
-      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+    // Get environment from centralized configuration
+    const elementPayBaseUrl = getServerBaseUrl(request)
     
     const meUrl = `${elementPayBaseUrl}/auth/me`
     

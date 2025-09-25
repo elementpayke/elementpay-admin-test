@@ -150,11 +150,13 @@ The production Dockerfile uses a multi-stage build:
 ### Common Issues
 
 #### 1. Permission Errors (Linux/macOS)
+
 ```bash
 sudo chown -R $USER:$USER .
 ```
 
 #### 2. Port Already in Use
+
 ```bash
 # Find process using port 3000
 lsof -i :3000  # macOS/Linux
@@ -165,6 +167,7 @@ docker-compose up -p 3001:3000
 ```
 
 #### 3. Build Failures
+
 ```bash
 # Clear Docker cache
 docker builder prune -a
@@ -174,6 +177,7 @@ docker-compose build --no-cache
 ```
 
 #### 4. Container Won't Start
+
 ```bash
 # Check logs
 docker-compose logs
@@ -185,12 +189,14 @@ curl http://localhost:3000/api/health
 ### Performance Optimization
 
 #### 1. Enable BuildKit (Faster Builds)
+
 ```bash
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 ```
 
 #### 2. Resource Limits
+
 ```yaml
 # In docker-compose.yml
 deploy:
@@ -206,6 +212,7 @@ deploy:
 ### Production Security
 
 1. **Use Strong Secrets**
+
    ```bash
    # Generate secure AUTH_SECRET
    openssl rand -base64 32
@@ -244,6 +251,7 @@ curl http://localhost:3000/api/health
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -272,11 +280,13 @@ docker inspect --format='{{json .State.Health}}' container_name
 ## 🚀 Deployment Options
 
 ### 1. Local Development
+
 ```bash
 docker-compose -f docker-compose.dev.yml up
 ```
 
 ### 2. Staging/Production
+
 ```bash
 docker-compose up -d
 ```
@@ -284,12 +294,14 @@ docker-compose up -d
 ### 3. Cloud Deployment
 
 #### AWS ECS
+
 ```bash
 # Build for ARM64 (Graviton)
 docker buildx build --platform linux/arm64 -t elementpay-sandbox .
 ```
 
 #### Google Cloud Run
+
 ```bash
 # Build and push to GCR
 docker build -t gcr.io/PROJECT_ID/elementpay-sandbox .
@@ -297,6 +309,7 @@ docker push gcr.io/PROJECT_ID/elementpay-sandbox
 ```
 
 #### Azure Container Instances
+
 ```bash
 # Build and push to ACR
 docker build -t elementpay.azurecr.io/sandbox .
@@ -333,4 +346,4 @@ For Docker-related issues:
 
 ---
 
-**Happy Dockerizing! 🐳✨**
+### Happy Dockerizing! 🐳✨

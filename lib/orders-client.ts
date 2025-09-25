@@ -1,4 +1,5 @@
 import type { ApiOrder, OrderStatus } from "./types"
+import { getCurrentEnvironment } from "./api-config"
 
 interface OrdersClientConfig {
   fetch?: typeof fetch
@@ -13,6 +14,17 @@ interface OrdersFilter {
 
 const DEFAULT_HEADERS: HeadersInit = {
   'Content-Type': 'application/json'
+}
+
+/**
+ * Get headers with current environment
+ */
+function getHeadersWithEnvironment(additionalHeaders?: HeadersInit): HeadersInit {
+  return {
+    ...DEFAULT_HEADERS,
+    'x-elementpay-environment': getCurrentEnvironment(),
+    ...additionalHeaders
+  }
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -82,10 +94,9 @@ export const ordersClient = (config: OrdersClientConfig = {}) => {
       console.log('Filters:', filters)
 
       const res = await fetchImpl(url, {
-        headers: {
-          ...DEFAULT_HEADERS,
+        headers: getHeadersWithEnvironment({
           'Authorization': `Bearer ${userToken}`
-        }
+        })
       })
 
       const response = await handleResponse<{

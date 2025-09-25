@@ -23,7 +23,6 @@ import {
   Search,
   Filter,
   Download,
-  ExternalLink,
   Copy,
   Clock,
   CheckCircle,
@@ -80,6 +79,9 @@ export default function TransactionsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [orderTypeFilter, setOrderTypeFilter] = useState("all")
+
+  // Debug logging
+  console.log('Filter states:', { statusFilter, orderTypeFilter })
   const [limit, setLimit] = useState(50)
   const [offset, setOffset] = useState(0)
 
@@ -123,37 +125,44 @@ export default function TransactionsPage() {
     switch (status) {
       case 'SETTLED':
       case 'COMPLETED':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case 'SUCCESS':
+        return <CheckCircle className="h-4 w-4 text-green-600" />
       case 'PROCESSING':
-        return <Clock className="h-4 w-4 text-yellow-500" />
+        return <Clock className="h-4 w-4 text-yellow-600" />
       case 'PENDING':
-        return <Clock className="h-4 w-4 text-blue-500" />
+        return <Clock className="h-4 w-4 text-blue-600" />
       case 'FAILED':
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="h-4 w-4 text-red-600" />
       case 'CANCELLED':
       case 'REFUNDED':
-        return <XCircle className="h-4 w-4 text-gray-500" />
+        return <XCircle className="h-4 w-4 text-gray-600" />
       case 'SETTLED_UNVERIFIED':
-        return <AlertTriangle className="h-4 w-4 text-orange-500" />
+        return <AlertTriangle className="h-4 w-4 text-orange-600" />
       default:
-        return <AlertTriangle className="h-4 w-4 text-gray-500" />
+        return <AlertTriangle className="h-4 w-4 text-gray-600" />
     }
   }
 
   const getStatusBadge = (status: string) => {
-    const variants = {
-      SETTLED: "default",
-      COMPLETED: "default",
-      PROCESSING: "secondary",
-      PENDING: "outline",
-      FAILED: "destructive",
-      CANCELLED: "secondary",
-      REFUNDED: "secondary",
-      SETTLED_UNVERIFIED: "outline",
-    } as const
+    const statusConfig = {
+      SETTLED: { variant: "default" as const, className: "bg-green-100 text-green-800 border-green-200 hover:bg-green-200" },
+      COMPLETED: { variant: "default" as const, className: "bg-green-100 text-green-800 border-green-200 hover:bg-green-200" },
+      SUCCESS: { variant: "default" as const, className: "bg-green-100 text-green-800 border-green-200 hover:bg-green-200" },
+      PROCESSING: { variant: "secondary" as const, className: "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200" },
+      PENDING: { variant: "outline" as const, className: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" },
+      FAILED: { variant: "destructive" as const, className: "bg-red-100 text-red-800 border-red-200 hover:bg-red-200" },
+      CANCELLED: { variant: "secondary" as const, className: "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200" },
+      REFUNDED: { variant: "secondary" as const, className: "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200" },
+      SETTLED_UNVERIFIED: { variant: "outline" as const, className: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100" },
+    }
+
+    const config = statusConfig[status as keyof typeof statusConfig] || { 
+      variant: "outline" as const, 
+      className: "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100" 
+    }
 
     return (
-      <Badge variant={variants[status as keyof typeof variants] || "outline"}>
+      <Badge variant={config.variant} className={config.className}>
         {status.replace('_', ' ')}
       </Badge>
     )
@@ -481,7 +490,7 @@ export default function TransactionsPage() {
                         />
                       </div>
                     </div>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <Select value={statusFilter} onValueChange={setStatusFilter} defaultValue="all" key={`status-${statusFilter}`}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Filter by status" />
                       </SelectTrigger>
@@ -490,14 +499,15 @@ export default function TransactionsPage() {
                         <SelectItem value="PENDING">Pending</SelectItem>
                         <SelectItem value="PROCESSING">Processing</SelectItem>
                         <SelectItem value="SETTLED">Settled</SelectItem>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="SUCCESS">Success</SelectItem>
                         <SelectItem value="FAILED">Failed</SelectItem>
                         <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                        <SelectItem value="COMPLETED">Completed</SelectItem>
                         <SelectItem value="SETTLED_UNVERIFIED">Settled Unverified</SelectItem>
                         <SelectItem value="REFUNDED">Refunded</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={orderTypeFilter} onValueChange={setOrderTypeFilter}>
+                    <Select value={orderTypeFilter} onValueChange={setOrderTypeFilter} defaultValue="all" key={`type-${orderTypeFilter}`}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Filter by type" />
                       </SelectTrigger>
@@ -618,6 +628,7 @@ export default function TransactionsPage() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setSelectedOrder(transaction)}
+                                    title="View order details"
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
@@ -681,28 +692,16 @@ export default function TransactionsPage() {
                                         <div>
                                           <Label>Transaction Hash</Label>
                                           <div className="flex items-center space-x-2">
-                                            <span className="font-mono text-sm">
+                                            <span className="font-mono text-sm break-all">
                                               {selectedOrder.transaction_hash}
                                             </span>
                                             <Button
                                               variant="ghost"
                                               size="sm"
                                               onClick={() => copyToClipboard(selectedOrder.transaction_hash!)}
+                                              title="Copy transaction hash"
                                             >
                                               <Copy className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              asChild
-                                            >
-                                              <a
-                                                href={`https://basescan.org/tx/${selectedOrder.transaction_hash}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                              >
-                                                <ExternalLink className="h-3 w-3" />
-                                              </a>
                                             </Button>
                                           </div>
                                         </div>
@@ -736,15 +735,10 @@ export default function TransactionsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  asChild
+                                  onClick={() => copyToClipboard(transaction.transaction_hash!)}
+                                  title="Copy transaction hash"
                                 >
-                                  <a
-                                    href={`https://basescan.org/tx/${transaction.transaction_hash}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </a>
+                                  <Copy className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>

@@ -3,6 +3,7 @@
 import AuthGuard from "@/components/auth/auth-guard"
 import DashboardLayout from "@/components/dashboard/dashboard-layout"
 import { useAuth } from "@/hooks/use-auth"
+import { useDashboard } from "@/hooks/use-dashboard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,240 +15,300 @@ import {
   ArrowUpRight,
   Clock,
   CheckCircle,
+  RefreshCw,
+  Coins,
+  Wallet,
+  Settings,
 } from "lucide-react"
 import Link from "next/link"
 
-// Mock data for dashboard stats
-const mockStats = {
-  totalTransactions: 127,
-  pendingOrders: 3,
-  settledAmount: 45620.50,
-  totalVolume: 128450.75,
-}
+// Reusable components
+const SummaryCard = ({ title, value, icon: Icon, growth, description }: {
+  title: string
+  value: string | number
+  icon: any
+  growth?: number
+  description?: string
+}) => (
+  <Card className="bg-gray-900/50 border-gray-800 hover:bg-gray-900/70 transition-all duration-200">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium text-gray-300">{title}</CardTitle>
+      <Icon className="h-4 w-4 text-purple-400" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      {(growth !== undefined || description) && (
+        <div className="flex items-center space-x-2 mt-2">
+          {growth !== undefined && growth > 0 && (
+            <Badge className="bg-green-600 text-green-100 hover:bg-green-700 animate-pulse">
+              <TrendingUp className="h-3 w-3 mr-1" />
+              +{growth}%
+            </Badge>
+          )}
+          {description && (
+            <p className="text-xs text-gray-400">{description}</p>
+          )}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+)
 
-const mockRecentTransactions = [
-  {
-    id: "tx_1234567890",
-    type: "onramp",
-    amount: 1500,
-    token: "BASE_USDC",
-    status: "settled",
-    date: "2024-01-15T10:30:00Z",
-  },
-  {
-    id: "tx_0987654321",
-    type: "offramp",
-    amount: 2300,
-    token: "ETH",
-    status: "processing",
-    date: "2024-01-15T09:15:00Z",
-  },
-  {
-    id: "tx_1122334455",
-    type: "onramp",
-    amount: 850,
-    token: "BASE_USDC",
-    status: "pending",
-    date: "2024-01-15T08:45:00Z",
-  },
-]
+const ActionButton = ({ icon: Icon, title, description, href, gradient }: {
+  icon: any
+  title: string
+  description: string
+  href: string
+  gradient: string
+}) => (
+  <Button
+    asChild
+    className={`h-auto p-6 justify-start ${gradient} hover:opacity-90 transition-all duration-200 text-white border-0`}
+  >
+    <Link href={href}>
+      <div className="flex flex-col items-start space-y-2">
+        <div className="flex items-center space-x-3">
+          <Icon className="h-6 w-6" />
+          <span className="font-semibold text-lg">{title}</span>
+        </div>
+        <span className="text-sm text-white/80">
+          {description}
+        </span>
+      </div>
+    </Link>
+  </Button>
+)
+
+const BreakdownCard = ({ title, icon: Icon, data, type }: {
+  title: string
+  icon: any
+  data: any
+  type: 'fiat' | 'crypto'
+}) => (
+  <Card className="bg-gray-900/50 border-gray-800">
+    <CardHeader>
+      <CardTitle className="text-lg text-white flex items-center space-x-2">
+        <Icon className="h-5 w-5 text-purple-400" />
+        <span>{title}</span>
+      </CardTitle>
+      <CardDescription className="text-gray-400">
+        {type === 'fiat' ? 'Cash disbursement statistics' : 'Digital asset conversion statistics'}
+      </CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      {Object.entries(data).map(([key, value]: [string, any]) => {
+        const displayName = type === 'fiat' ? key : key.replace('(Testnet)', '').replace('_', ' ')
+        return (
+          <div key={key} className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full ${type === 'fiat' ? 'bg-yellow-500' : 'bg-blue-500'}`} />
+              <span className="font-medium text-white">{displayName}</span>
+              {value.weekly_growth > 0 && (
+                <Badge className="bg-green-600 text-green-100 hover:bg-green-700 animate-pulse">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  +{value.weekly_growth}%
+                </Badge>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4 ml-6">
+              <div>
+                <p className="text-sm text-gray-400">Total Volume</p>
+                <p className="text-lg font-semibold text-white">
+                  {type === 'fiat' ? `KES ${value.total_volume.toLocaleString()}` : `${value.total_volume.toFixed(6)}`}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400">Settled</p>
+                <p className="text-lg font-semibold text-white">
+                  {type === 'fiat' ? `KES ${value.settled_amount.toLocaleString()}` : `${value.settled_amount.toFixed(6)}`}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400">Transactions</p>
+                <p className="text-lg font-semibold text-white">{value.transaction_count}</p>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </CardContent>
+  </Card>
+)
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+  const { dashboardData, isLoading, error, refetch } = useDashboard()
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'settled':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'processing':
-        return <Clock className="h-4 w-4 text-yellow-500" />
-      case 'pending':
-        return <Clock className="h-4 w-4 text-blue-500" />
-      default:
-        return <Activity className="h-4 w-4 text-gray-500" />
-    }
+  // Show loading while authentication is being checked
+  if (authLoading) {
+    return (
+      <AuthGuard>
+        <DashboardLayout>
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-400" />
+              <p className="text-gray-400">Loading dashboard...</p>
+            </div>
+          </div>
+        </DashboardLayout>
+      </AuthGuard>
+    )
   }
+
+  // Don't render if not authenticated
+  if (!isAuthenticated) {
+    return null
+  }
+
+  // Extract data from dashboard API response
+  const summaryData = dashboardData?.summary || {
+    total_transactions: 0,
+    pending_orders: 0,
+    settled_orders: 0,
+    total_currencies: 0,
+    total_tokens: 0
+  }
+
+  const fiatBreakdown = dashboardData?.fiat_breakdown || {}
+  const cryptoBreakdown = dashboardData?.crypto_breakdown || {}
+
+  // Quick Actions configuration
+  const quickActions = [
+    {
+      icon: ArrowUpRight,
+      title: "Create Order",
+      description: "Buy or sell crypto instantly",
+      href: "/dashboard/transactions",
+      gradient: "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+    },
+    {
+      icon: DollarSign,
+      title: "Make Payment",
+      description: "Pay with crypto via M-PESA",
+      href: "/dashboard/disbursement",
+      gradient: "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+    },
+    {
+      icon: Settings,
+      title: "Manage API Keys",
+      description: "Create and manage your API keys",
+      href: "/dashboard/api-keys",
+      gradient: "bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800"
+    }
+  ]
 
   return (
     <AuthGuard>
       <DashboardLayout>
-        <div className="space-y-8">
-          {/* Welcome Section */}
-          <div className="flex flex-col space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">
-              Welcome back, {user?.name || 'User'}!
-            </h1>
-          <p className="text-muted-foreground">
-              Here's an overview of your Element Pay activity and quick access to key features.
-          </p>
-        </div>
-
-
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{mockStats.totalTransactions}</div>
-                <p className="text-xs text-muted-foreground">
-                  +12% from last month
+        <div className="space-y-8 bg-gray-950 min-h-screen">
+          {/* Header Section */}
+          <div className="flex flex-col space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-white">
+                  Welcome back, {user?.name || 'User'}!
+                </h1>
+                <p className="text-gray-400 mt-2">
+                  Here's an overview of your Element Pay activity and quick access to key features.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refetch}
+                disabled={isLoading}
+                className="border-gray-700 bg-gray-900/50 text-gray-300 hover:bg-gray-800 hover:text-white"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{mockStats.pendingOrders}</div>
-                <p className="text-xs text-muted-foreground">
-                  Awaiting processing
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Settled Amount</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  KES {mockStats.settledAmount.toLocaleString()}
+          {/* Error State */}
+          {error && (
+            <Card className="border-red-800 bg-red-900/20">
+              <CardContent className="pt-6">
+                <div className="text-red-400">
+                  Failed to load dashboard data: {error}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  +8% from last month
-                </p>
               </CardContent>
             </Card>
+          )}
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Volume</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  KES {mockStats.totalVolume.toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  +15% from last month
-                </p>
-              </CardContent>
-            </Card>
+          {/* Summary Cards */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+            <SummaryCard
+              title="Total Transactions"
+              value={isLoading ? "..." : summaryData.total_transactions}
+              icon={Activity}
+              growth={100}
+            />
+
+            <SummaryCard
+              title="Pending Orders"
+              value={isLoading ? "..." : summaryData.pending_orders}
+              icon={Clock}
+              description="Awaiting processing"
+            />
+
+            <SummaryCard
+              title="Settled Orders"
+              value={isLoading ? "..." : summaryData.settled_orders}
+              icon={CheckCircle}
+              growth={100}
+              description="Successfully completed"
+            />
+
+            <SummaryCard
+              title="Fiat Currencies"
+              value={isLoading ? "..." : summaryData.total_currencies}
+              icon={DollarSign}
+              description="Supported currencies"
+            />
+
+            <SummaryCard
+              title="Crypto Tokens"
+              value={isLoading ? "..." : summaryData.total_tokens}
+              icon={Coins}
+              description="BASE network"
+            />
           </div>
 
           {/* Quick Actions */}
-          <Card>
+          <Card className="bg-gray-900/50 border-gray-800">
             <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-white">Quick Actions</CardTitle>
+              <CardDescription className="text-gray-400">
                 Common tasks and shortcuts to get you started
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Button asChild className="h-auto p-4 justify-start bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800">
-                  <Link href="/dashboard/transactions">
-                    <div className="flex flex-col items-start space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <ArrowUpRight className="h-4 w-4" />
-                        <span className="font-medium">Create Order</span>
-                      </div>
-                      <span className="text-xs text-purple-100">
-                        Buy or sell crypto instantly
-                      </span>
-                    </div>
-                  </Link>
-                </Button>
-
-                <Button variant="outline" asChild className="h-auto p-4 justify-start border-purple-200 hover:border-purple-300 hover:bg-purple-50 dark:border-purple-800 dark:hover:bg-purple-900/20">
-                  <Link href="/dashboard/disbursement">
-                    <div className="flex flex-col items-start space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <DollarSign className="h-4 w-4 text-purple-600" />
-                        <span className="font-medium">Make Payment</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        Pay with crypto via M-PESA
-                      </span>
-                    </div>
-                  </Link>
-                </Button>
-
-                <Button variant="outline" asChild className="h-auto p-4 justify-start">
-                  <Link href="/dashboard/api-keys">
-                    <div className="flex flex-col items-start space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <CreditCard className="h-4 w-4" />
-                        <span className="font-medium">Manage API Keys</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        Create and manage your API keys
-                      </span>
-                    </div>
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Transactions */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Recent Transactions</CardTitle>
-                <CardDescription>
-                  Your latest transaction activity
-                </CardDescription>
-              </div>
-              <Button variant="outline" asChild>
-                <Link href="/dashboard/transactions">
-                  View All
-                  <ArrowUpRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {mockRecentTransactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="flex items-center space-x-4">
-                      {getStatusIcon(transaction.status)}
-                      <div>
-                        <div className="font-medium">
-                          {transaction.type === 'onramp' ? 'Buy' : 'Sell'} {transaction.token}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {new Date(transaction.date).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium">
-                        KES {transaction.amount.toLocaleString()}
-                      </div>
-                      <Badge variant={
-                        transaction.status === 'settled' ? 'default' :
-                        transaction.status === 'processing' ? 'secondary' : 'outline'
-                      }>
-                        {transaction.status}
-                      </Badge>
-                    </div>
-                  </div>
+                {quickActions.map((action, index) => (
+                  <ActionButton key={index} {...action} />
                 ))}
               </div>
             </CardContent>
           </Card>
-    </div>
+
+          {/* Breakdown Sections */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <BreakdownCard
+              title="Fiat Currency Breakdown"
+              icon={DollarSign}
+              data={fiatBreakdown}
+              type="fiat"
+            />
+
+            <BreakdownCard
+              title="Crypto Token Breakdown"
+              icon={Coins}
+              data={cryptoBreakdown}
+              type="crypto"
+            />
+          </div>
+        </div>
       </DashboardLayout>
     </AuthGuard>
   )

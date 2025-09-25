@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerBaseUrl } from "@/lib/api-config"
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,12 +17,8 @@ export async function GET(req: NextRequest) {
       }, { status: 401 })
     }
 
-    // Get environment from query parameter or default to sandbox for API keys
-    const { searchParams } = new URL(req.url)
-    const isSandbox = searchParams.get('sandbox') === 'true'
-    const elementPayBaseUrl = isSandbox 
-      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
-      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+    // Get environment from centralized configuration
+    const elementPayBaseUrl = getServerBaseUrl(req)
 
     // console.log('Element Pay Base URL:', elementPayBaseUrl)
     

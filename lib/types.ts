@@ -46,7 +46,7 @@ export type OrderType = 0 | 1 // 0 for onramp, 1 for offramp
 
 export type CashoutType = "PHONE" | "TILL" | "PAYBILL"
 
-export type OrderStatus = "PENDING" | "PROCESSING" | "SETTLED" | "FAILED" | "CANCELLED" | "COMPLETED" | "SETTLED_UNVERIFIED" | "REFUNDED"
+export type OrderStatus = "PENDING" | "PROCESSING" | "SETTLED" | "FAILED" | "CANCELLED" | "COMPLETED" | "SETTLED_UNVERIFIED" | "REFUNDED" | "SUCCESS"
 
 export type Currency = "KES"
 

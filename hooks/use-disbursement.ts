@@ -249,13 +249,72 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     fetchRecentDisbursements()
   }, [fetchRecentDisbursements])
 
+  // Fetch rates
+  const fetchRates = useCallback(async () => {
+    setIsLoadingRates(true)
+    try {
+      // Mock API call - replace with actual Element Pay API
+      const response = await makeAuthenticatedRequest(
+        '/api/elementpay/rates',
+        { method: 'GET' }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch rates')
+      }
+
+      const ratesData = await response.json()
+
+      // Transform the response to match our expected format
+      const transformedRates: Record<Token, ExchangeRate> = {}
+      ratesData.rates?.forEach((rate: any) => {
+        transformedRates[rate.token as Token] = {
+          token: rate.token,
+          rate: rate.rate,
+          lastUpdated: rate.last_updated || new Date().toISOString(),
+        }
+      })
+
+      setRates(transformedRates)
+    } catch (error) {
+      console.error('Failed to fetch rates:', error)
+      toast({
+        title: "Rate Fetch Failed",
+        description: "Unable to fetch current exchange rates",
+      })
+    } finally {
+      setIsLoadingRates(false)
+    }
+  }, [makeAuthenticatedRequest, toast])
+
+  // Fetch rates on mount
+  useEffect(() => {
+    if (autoRefreshRates) {
+      fetchRates()
+    }
+  }, [fetchRates, autoRefreshRates])
+
+  // Auto refresh rates
+  useEffect(() => {
+    if (!autoRefreshRates) return
+
+    const interval = setInterval(() => {
+      fetchRates()
+    }, refreshInterval * 1000)
+
+    return () => clearInterval(interval)
+  }, [fetchRates, autoRefreshRates, refreshInterval])
+
   return {
     // State
+    rates,
+    isLoadingRates,
     currentQuote,
     isLoadingQuote,
     recentDisbursements,
 
     // Actions
+    fetchRates,
     getQuote,
     createDisbursement,
     fetchRecentDisbursements,

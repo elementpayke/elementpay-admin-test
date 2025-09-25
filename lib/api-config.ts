@@ -298,6 +298,55 @@ export const switchEnvironment = (env: Environment) => environmentManager.switch
 export const subscribeToEnvironmentChanges = (callback: (env: Environment) => void) => 
   environmentManager.subscribe(callback)
 
+// Server-compatible environment utilities
+export const SERVER_DEFAULT_ENVIRONMENT: Environment = 'sandbox'
+
+/**
+ * Get environment from server context (headers, cookies, etc.)
+ * This is designed to work on the server side where localStorage is not available
+ */
+export function getServerEnvironment(request?: Request): Environment {
+  // Try to get from headers first (can be set by client)
+  if (request) {
+    const envHeader = request.headers.get('x-elementpay-environment')
+    if (envHeader === 'sandbox' || envHeader === 'live') {
+      return envHeader as Environment
+    }
+  }
+
+  // Fallback to server default
+  return SERVER_DEFAULT_ENVIRONMENT
+}
+
+/**
+ * Get API config for server-side usage
+ */
+export function getServerConfig(request?: Request): ApiConfig {
+  const env = getServerEnvironment(request)
+  return ENVIRONMENTS[env]
+}
+
+/**
+ * Get base URL for server-side usage
+ */
+export function getServerBaseUrl(request?: Request): string {
+  return getServerConfig(request).baseUrl
+}
+
+/**
+ * Check if server environment is sandbox
+ */
+export function isServerSandbox(request?: Request): boolean {
+  return getServerEnvironment(request) === 'sandbox'
+}
+
+/**
+ * Check if server environment is live
+ */
+export function isServerLive(request?: Request): boolean {
+  return getServerEnvironment(request) === 'live'
+}
+
 // Export for backwards compatibility and direct access
 export { environmentManager as envManager }
 export { ENVIRONMENTS }
