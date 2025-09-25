@@ -33,6 +33,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { toast as sonnerToast } from "sonner"
 import { ordersClient } from "@/lib/orders-client"
 import { useEnvironment } from "@/hooks/use-environment"
 import type { ApiOrder, Order, OrderType, CashoutType, Token, Currency, OrderStatus } from "@/lib/types"
@@ -122,7 +123,7 @@ export default function TransactionsPage() {
   })
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status.toUpperCase()) {
       case 'SETTLED':
       case 'COMPLETED':
       case 'SUCCESS':
@@ -234,9 +235,9 @@ export default function TransactionsPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-    toast({
-      title: "Copied",
-      description: "Copied to clipboard",
+    sonnerToast.success("Copied to clipboard", {
+      description: `${text.slice(0, 20)}${text.length > 20 ? '...' : ''}`,
+      duration: 2000,
     })
   }
 
@@ -256,10 +257,10 @@ export default function TransactionsPage() {
     <AuthGuard>
       <DashboardLayout>
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
-              <p className="text-muted-foreground">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Transactions</h1>
+              <p className="text-muted-foreground text-sm sm:text-base">
                 Create orders and manage your transaction history.
               </p>
             </div>
@@ -271,7 +272,7 @@ export default function TransactionsPage() {
                   Create Order
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
                 <DialogHeader>
                   <DialogTitle>Create New Order</DialogTitle>
                   <DialogDescription>
@@ -280,7 +281,7 @@ export default function TransactionsPage() {
                 </DialogHeader>
 
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {/* Order Type Toggle */}
                   <div className="space-y-2">
                     <Label>Order Type</Label>
@@ -304,12 +305,12 @@ export default function TransactionsPage() {
                     <Label htmlFor="token">Token</Label>
                     <Select
                       value={orderForm.token}
-                      onValueChange={(value: Token) => 
+                      onValueChange={(value: Token) =>
                         setOrderForm(prev => ({ ...prev, token: value }))
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select a token" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="BASE_USDC">BASE USDC</SelectItem>
@@ -338,12 +339,12 @@ export default function TransactionsPage() {
                     <Label htmlFor="cashoutType">Cashout Type</Label>
                     <Select
                       value={orderForm.cashoutType}
-                      onValueChange={(value: CashoutType) => 
+                      onValueChange={(value: CashoutType) =>
                         setOrderForm(prev => ({ ...prev, cashoutType: value }))
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select cashout type" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="PHONE">Mobile Money (Phone)</SelectItem>
@@ -389,7 +390,7 @@ export default function TransactionsPage() {
                           id="paybillNumber"
                           placeholder="Enter paybill number"
                           value={orderForm.paybillNumber}
-                          onChange={(e) => 
+                          onChange={(e) =>
                             setOrderForm(prev => ({ ...prev, paybillNumber: e.target.value }))
                           }
                         />
@@ -400,7 +401,7 @@ export default function TransactionsPage() {
                           id="accountNumber"
                           placeholder="Enter account number"
                           value={orderForm.accountNumber}
-                          onChange={(e) => 
+                          onChange={(e) =>
                             setOrderForm(prev => ({ ...prev, accountNumber: e.target.value }))
                           }
                         />
@@ -447,15 +448,17 @@ export default function TransactionsPage() {
                     />
                   </div>
 
-                  <div className="flex justify-end space-x-2">
+                  <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
                     <Button
                       variant="outline"
                       onClick={() => setIsCreateOrderOpen(false)}
+                      className="w-full sm:w-auto"
                     >
                       Cancel
                     </Button>
                     <Button
                       onClick={handleCreateOrder}
+                      className="w-full sm:w-auto"
                     >
                       Create Order
                     </Button>
@@ -478,8 +481,8 @@ export default function TransactionsPage() {
                   <CardTitle className="text-lg">Filters</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="flex-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="sm:col-span-2 lg:col-span-1">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -491,7 +494,7 @@ export default function TransactionsPage() {
                       </div>
                     </div>
                     <Select value={statusFilter} onValueChange={setStatusFilter} defaultValue="all" key={`status-${statusFilter}`}>
-                      <SelectTrigger className="w-[180px]">
+                      <SelectTrigger>
                         <SelectValue placeholder="Filter by status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -508,7 +511,7 @@ export default function TransactionsPage() {
                       </SelectContent>
                     </Select>
                     <Select value={orderTypeFilter} onValueChange={setOrderTypeFilter} defaultValue="all" key={`type-${orderTypeFilter}`}>
-                      <SelectTrigger className="w-[180px]">
+                      <SelectTrigger>
                         <SelectValue placeholder="Filter by type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -517,7 +520,7 @@ export default function TransactionsPage() {
                         <SelectItem value="offramp">OffRamp (Sell)</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button variant="outline">
+                    <Button variant="outline" className="w-full sm:w-auto">
                       <Download className="h-4 w-4 mr-2" />
                       Export
                     </Button>
@@ -537,217 +540,249 @@ export default function TransactionsPage() {
                   {ordersQuery.isLoading ? (
                     <div className="flex items-center justify-center py-12">
                       <div className="flex items-center gap-3">
-                        <Loader2 className="w-6 h-6 animate-spin" />
-                        <span className="text-gray-600">Loading your orders...</span>
+                        <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                        <span className="text-muted-foreground">Loading your orders...</span>
                       </div>
                     </div>
                   ) : ordersQuery.isError ? (
                     <div className="text-center py-12">
-                      <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
-                        <XCircle className="w-8 h-8 text-red-500" />
+                      <div className="w-16 h-16 mx-auto bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                        <XCircle className="w-8 h-8 text-destructive" />
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to load orders</h3>
-                      <p className="text-red-600 mb-4">{(ordersQuery.error as any)?.message || "An error occurred while loading your orders"}</p>
+                      <h3 className="text-lg font-semibold text-foreground mb-2">Failed to load orders</h3>
+                      <p className="text-destructive mb-4">{(ordersQuery.error as any)?.message || "An error occurred while loading your orders"}</p>
                       <Button
                         variant="outline"
                         onClick={() => ordersQuery.refetch()}
-                        className="border-red-200 text-red-600 hover:bg-red-50"
+                        className="border-destructive/50 text-destructive hover:bg-destructive/10"
                       >
                         Try Again
                       </Button>
                     </div>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Order ID</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Token</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredTransactions.length === 0 ? (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center py-12 text-gray-500">
-                              No orders found
-                            </TableCell>
+                            <TableHead className="min-w-[120px] w-[120px]">Order ID</TableHead>
+                            <TableHead className="min-w-[90px] w-[90px]">Type</TableHead>
+                            <TableHead className="min-w-[90px] w-[90px]">Token</TableHead>
+                            <TableHead className="min-w-[110px] w-[110px]">Amount</TableHead>
+                            <TableHead className="min-w-[90px] w-[90px]">Status</TableHead>
+                            <TableHead className="min-w-[90px] w-[90px]">Date</TableHead>
+                            <TableHead className="min-w-[90px] w-[90px]">Actions</TableHead>
                           </TableRow>
-                        ) : (
-                          filteredTransactions.map((transaction) => (
-                        <TableRow key={transaction.id}>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <span className="font-mono text-sm">
-                                {transaction.id.slice(0, 12)}...
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => copyToClipboard(transaction.id)}
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {transaction.order_type === 0 ? 'OnRamp' : 'OffRamp'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{transaction.token}</TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">
-                                KES {transaction.amount_fiat.toLocaleString()}
-                              </div>
-                              {transaction.amount_crypto && (
-                                <div className="text-sm text-muted-foreground">
-                                  {transaction.amount_crypto} {transaction.token}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              {getStatusIcon(transaction.status)}
-                              {getStatusBadge(transaction.status)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(transaction.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setSelectedOrder(transaction)}
-                                    title="View order details"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-2xl">
-                                  <DialogHeader>
-                                    <DialogTitle>Order Details</DialogTitle>
-                                    <DialogDescription>
-                                      Complete information for order {selectedOrder?.id}
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  {selectedOrder && (
-                                    <div className="space-y-4">
-                                      <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                          <Label>Order ID</Label>
-                                          <div className="font-mono text-sm">
-                                            {selectedOrder.id}
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <Label>Status</Label>
-                                          <div className="flex items-center space-x-2 mt-1">
-                                            {getStatusIcon(selectedOrder.status)}
-                                            {getStatusBadge(selectedOrder.status)}
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <Label>Type</Label>
-                                          <div>
-                                            {selectedOrder.order_type === 0 ? 'OnRamp (Buy)' : 'OffRamp (Sell)'}
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <Label>Token</Label>
-                                          <div>{selectedOrder.token}</div>
-                                        </div>
-                                        <div>
-                                          <Label>Fiat Amount</Label>
-                                          <div>KES {selectedOrder.amount_fiat.toLocaleString()}</div>
-                                        </div>
-                                        {selectedOrder.amount_crypto && (
-                                          <div>
-                                            <Label>Crypto Amount</Label>
-                                            <div>{selectedOrder.amount_crypto} {selectedOrder.token}</div>
-                                          </div>
-                                        )}
-                                        {selectedOrder.exchange_rate && (
-                                          <div>
-                                            <Label>Exchange Rate</Label>
-                                            <div>KES {selectedOrder.exchange_rate.toLocaleString()}</div>
-                                          </div>
-                                        )}
-                                        <div>
-                                          <Label>Cashout Type</Label>
-                                          <div>{selectedOrder.fiat_payload.cashout_type}</div>
-                                        </div>
-                                      </div>
-                                      
-                                      {selectedOrder.transaction_hash && (
-                                        <div>
-                                          <Label>Transaction Hash</Label>
-                                          <div className="flex items-center space-x-2">
-                                            <span className="font-mono text-sm break-all">
-                                              {selectedOrder.transaction_hash}
-                                            </span>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => copyToClipboard(selectedOrder.transaction_hash!)}
-                                              title="Copy transaction hash"
-                                            >
-                                              <Copy className="h-3 w-3" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      <div>
-                                        <Label>Payment Details</Label>
-                                        <div className="mt-2 space-y-2 text-sm">
-                                          <div>Phone: {selectedOrder.fiat_payload.phone_number}</div>
-                                          {selectedOrder.fiat_payload.till_number && (
-                                            <div>Till: {selectedOrder.fiat_payload.till_number}</div>
-                                          )}
-                                          {selectedOrder.fiat_payload.paybill_number && (
-                                            <div>Paybill: {selectedOrder.fiat_payload.paybill_number}</div>
-                                          )}
-                                          {selectedOrder.fiat_payload.account_number && (
-                                            <div>Account: {selectedOrder.fiat_payload.account_number}</div>
-                                          )}
-                                          <div>Reference: {selectedOrder.fiat_payload.reference}</div>
-                                          {selectedOrder.fiat_payload.narrative && (
-                                            <div>Narrative: {selectedOrder.fiat_payload.narrative}</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </DialogContent>
-                              </Dialog>
-                              
-                              {transaction.transaction_hash && (
+                        </TableHeader>
+                        <TableBody>
+                          {filteredTransactions.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                                No orders found
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            filteredTransactions.map((transaction) => (
+                          <TableRow key={transaction.id}>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono text-sm">
+                                  {transaction.id.slice(0, 12)}...
+                                </span>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => copyToClipboard(transaction.transaction_hash!)}
-                                  title="Copy transaction hash"
+                                  onClick={() => copyToClipboard(transaction.id)}
                                 >
-                                  <Copy className="h-4 w-4" />
+                                  <Copy className="h-3 w-3" />
                                 </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                        ))
-                        )}
-                      </TableBody>
-                    </Table>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {transaction.order_type === 0 ? 'OnRamp' : 'OffRamp'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{transaction.token}</TableCell>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">
+                                  KES {transaction.amount_fiat.toLocaleString()}
+                                </div>
+                                {transaction.amount_crypto && (
+                                  <div className="text-sm text-muted-foreground">
+                                    {transaction.amount_crypto} {transaction.token}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2 uppercase">
+                                {getStatusIcon(transaction.status)}
+                                {getStatusBadge(transaction.status)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                {new Date(transaction.created_at).toLocaleDateString()}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setSelectedOrder(transaction)}
+                                      title="View order details"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+                                    <DialogHeader>
+                                      <DialogTitle>Order Details</DialogTitle>
+                                      <DialogDescription>
+                                        Complete information for order {selectedOrder?.id}
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    {selectedOrder && (
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                          <div>
+                                            <Label>Order ID</Label>
+                                            <div className="flex items-center space-x-2">
+                                              <span className="font-mono text-sm truncate flex-1">
+                                                {selectedOrder.id}
+                                              </span>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => copyToClipboard(selectedOrder.id)}
+                                                title="Copy order ID"
+                                              >
+                                                <Copy className="h-3 w-3" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <Label>Status</Label>
+                                            <div className="flex items-center space-x-2 mt-1">
+                                              {getStatusIcon(selectedOrder.status)}
+                                              {getStatusBadge(selectedOrder.status)}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <Label>Type</Label>
+                                            <div>
+                                              {selectedOrder.order_type === 0 ? 'OnRamp (Buy)' : 'OffRamp (Sell)'}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <Label>Token</Label>
+                                            <div>{selectedOrder.token}</div>
+                                          </div>
+                                          <div>
+                                            <Label>Fiat Amount</Label>
+                                            <div>KES {selectedOrder.amount_fiat.toLocaleString()}</div>
+                                          </div>
+                                          {selectedOrder.amount_crypto && (
+                                            <div>
+                                              <Label>Crypto Amount</Label>
+                                              <div>{selectedOrder.amount_crypto} {selectedOrder.token}</div>
+                                            </div>
+                                          )}
+                                          {selectedOrder.exchange_rate && (
+                                            <div>
+                                              <Label>Exchange Rate</Label>
+                                              <div>KES {selectedOrder.exchange_rate.toLocaleString()}</div>
+                                            </div>
+                                          )}
+                                          <div>
+                                            <Label>Cashout Type</Label>
+                                            <div>{selectedOrder.fiat_payload.cashout_type}</div>
+                                          </div>
+                                        </div>
+
+                                        {selectedOrder.transaction_hash && (
+                                          <div>
+                                            <Label>Transaction Hash</Label>
+                                            <div className="flex items-center space-x-2">
+                                              <span className="font-mono text-sm break-all">
+                                                {selectedOrder.transaction_hash}
+                                              </span>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => copyToClipboard(selectedOrder.transaction_hash!)}
+                                                title="Copy transaction hash"
+                                              >
+                                                <Copy className="h-3 w-3" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                      <div>
+                                        <Label>Payment Details</Label>
+                                        <div className="mt-2 space-y-2 text-sm bg-muted/30 p-3 rounded-md">
+                                          <div className="flex flex-col sm:flex-row sm:justify-between">
+                                            <span className="text-muted-foreground">Phone:</span>
+                                            <span className="font-medium break-all">{selectedOrder.fiat_payload.phone_number}</span>
+                                          </div>
+                                          {selectedOrder.fiat_payload.till_number && (
+                                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                              <span className="text-muted-foreground">Till:</span>
+                                              <span className="font-medium">{selectedOrder.fiat_payload.till_number}</span>
+                                            </div>
+                                          )}
+                                          {selectedOrder.fiat_payload.paybill_number && (
+                                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                              <span className="text-muted-foreground">Paybill:</span>
+                                              <span className="font-medium">{selectedOrder.fiat_payload.paybill_number}</span>
+                                            </div>
+                                          )}
+                                          {selectedOrder.fiat_payload.account_number && (
+                                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                              <span className="text-muted-foreground">Account:</span>
+                                              <span className="font-medium break-all">{selectedOrder.fiat_payload.account_number}</span>
+                                            </div>
+                                          )}
+                                          <div className="flex flex-col sm:flex-row sm:justify-between">
+                                            <span className="text-muted-foreground">Reference:</span>
+                                            <span className="font-medium break-all">{selectedOrder.fiat_payload.reference}</span>
+                                          </div>
+                                          {selectedOrder.fiat_payload.narrative && (
+                                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                              <span className="text-muted-foreground">Narrative:</span>
+                                              <span className="font-medium break-all">{selectedOrder.fiat_payload.narrative}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      </div>
+                                    )}
+                                  </DialogContent>
+                                </Dialog>
+
+                                {transaction.transaction_hash && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => copyToClipboard(transaction.transaction_hash!)}
+                                    title="Copy transaction hash"
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>

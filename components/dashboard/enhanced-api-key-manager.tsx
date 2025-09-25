@@ -14,6 +14,8 @@ import { CreateApiKeyDialog } from "./enhanced-create-api-key-dialog"
 import { ApiKeyTable } from "./enhanced-api-key-table"
 import { toast as sonnerToast } from "sonner"
 import { ApiKeyRevealModal } from "./api-key-reveal-modal"
+import { ApiKeyViewModal } from "./api-key-view-modal"
+import { ApiKeyEditModal } from "./api-key-edit-modal"
 import { useEnvironment } from "@/hooks/use-environment"
 import { EnvironmentToggle } from "@/components/ui/environment-toggle"
 
@@ -39,7 +41,11 @@ export default function EnhancedApiKeyManager() {
     name: string
     key: string
     environment: "testnet" | "mainnet"
+    webhookUrl?: string
+    webhookSecret?: string
   } | null>(null)
+  const [viewingApiKey, setViewingApiKey] = useState<ApiKey | null>(null)
+  const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null)
 
   const apiKeysQuery = useQuery<ApiKey[]>({
     queryKey: ["apiKeys", environment],
@@ -112,6 +118,8 @@ export default function EnhancedApiKeyManager() {
         name: created.name,
         key: created.key,
         environment: created.environment || 'testnet',
+        webhookUrl: created.webhookUrl,
+        webhookSecret: created.webhookSecret,
       }
       console.log('Setting newKeyForReveal to:', JSON.stringify(keyForReveal, null, 2))
       setNewKeyForReveal(keyForReveal)
@@ -221,7 +229,7 @@ export default function EnhancedApiKeyManager() {
     onError: (err: any) => {
       console.error('deleteKey onError:', err)
       const errorMessage = err?.message || "Unknown error occurred"
-      
+
       if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
         sonnerToast.error("Delete Permission Denied", {
           description: "You don't have permission to delete this API key.",
@@ -245,6 +253,49 @@ export default function EnhancedApiKeyManager() {
     },
   })
 
+  const updateWebhook = useMutation({
+    mutationFn: async ({ id, webhookUrl, webhookSecret }: {
+      id: string
+      webhookUrl?: string
+      webhookSecret?: string
+    }) => {
+      if (!token) throw new Error("Not authenticated")
+      return client.updateWebhook(id, { webhookUrl, webhookSecret }, token)
+    },
+    onSuccess: (updatedKey) => {
+      queryClient.invalidateQueries({ queryKey: ["apiKeys", environment] })
+      sonnerToast.success("Webhook Updated", {
+        description: "Webhook configuration has been updated successfully.",
+        duration: 4000,
+      })
+    },
+    onError: (err: any) => {
+      console.error('updateWebhook onError:', err)
+      const errorMessage = err?.message || "Unknown error occurred"
+
+      if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
+        sonnerToast.error("Update Permission Denied", {
+          description: "You don't have permission to update this API key.",
+          duration: 6000,
+        })
+      } else if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+        sonnerToast.error("API Key Not Found", {
+          description: "The API key you're trying to update no longer exists.",
+          duration: 6000,
+        })
+      } else {
+        sonnerToast.error("Update Failed", {
+          description: errorMessage,
+          duration: 6000,
+          action: {
+            label: "Try Again",
+            onClick: () => queryClient.invalidateQueries({ queryKey: ["apiKeys", environment] })
+          }
+        })
+      }
+    },
+  })
+
   // Unsupported operations in Element Pay API: regenerate/revoke. We surface helpful errors.
   const regenerateKey = useMutation({
     mutationFn: async (_id: string) => {
@@ -252,6 +303,24 @@ export default function EnhancedApiKeyManager() {
     },
   onError: (err: any) => toast({ title: "Not supported", description: err.message, type: "destructive" }),
   })
+
+  // Handler functions for modal actions
+  const handleViewApiKey = (apiKey: ApiKey) => {
+    setViewingApiKey(apiKey)
+  }
+
+  const handleEditApiKey = (apiKey: ApiKey) => {
+    setEditingApiKey(apiKey)
+  }
+
+  const handleUpdateWebhook = async (apiKeyId: string, webhookUrl: string, webhookSecret: string) => {
+    await updateWebhook.mutateAsync({
+      id: apiKeyId,
+      webhookUrl: webhookUrl || undefined,
+      webhookSecret: webhookSecret || undefined
+    })
+    setEditingApiKey(null)
+  }
 
   // Debug logging - moved here after all variables are declared
   console.log('EnhancedApiKeyManager render - session:', !!session)
@@ -261,6 +330,8 @@ export default function EnhancedApiKeyManager() {
   console.log('createKey.isError:', createKey.isError)
   console.log('createKey.isSuccess:', createKey.isSuccess)
   console.log('newKeyForReveal:', newKeyForReveal)
+  console.log('viewingApiKey:', viewingApiKey?.name)
+  console.log('editingApiKey:', editingApiKey?.name)
 
   useEffect(() => {
     if (!token) return
@@ -326,8 +397,8 @@ export default function EnhancedApiKeyManager() {
       </div>
 
       {/* Main Content */}
-      <Card className="border-0 shadow-lg bg-white/50 backdrop-blur-sm">
-        <CardContent className="p-6">
+      <Card className="border-none shadow-none   ">
+        <CardContent className="p-0 shadow-none border-none">
           {apiKeysQuery.isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center gap-3">
@@ -359,6 +430,8 @@ export default function EnhancedApiKeyManager() {
               onRegenerate={(id) => regenerateKey.mutate(id)}
               onRevoke={(id) => deleteKey.mutate(id)}
               onDelete={(id) => deleteKey.mutate(id)}
+              onView={handleViewApiKey}
+              onEdit={handleEditApiKey}
               isRegenerating={regenerateKey.isPending}
               isDeleting={deleteKey.isPending}
             />
@@ -394,6 +467,21 @@ export default function EnhancedApiKeyManager() {
         isOpen={!!newKeyForReveal}
         onClose={() => setNewKeyForReveal(null)}
         apiKey={newKeyForReveal}
+      />
+
+      <ApiKeyViewModal
+        isOpen={!!viewingApiKey}
+        onClose={() => setViewingApiKey(null)}
+        onEdit={handleEditApiKey}
+        apiKey={viewingApiKey}
+      />
+
+      <ApiKeyEditModal
+        isOpen={!!editingApiKey}
+        onClose={() => setEditingApiKey(null)}
+        onSave={handleUpdateWebhook}
+        apiKey={editingApiKey}
+        isLoading={updateWebhook.isPending}
       />
     </div>
   )

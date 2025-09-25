@@ -26,6 +26,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { toast as sonnerToast } from "sonner"
 import type { DisbursementOrder, PaymentMethod } from "@/lib/types"
 
 interface PaymentTrackingProps {
@@ -97,9 +98,9 @@ export default function PaymentTracking({ orders, onRefresh, isLoading }: Paymen
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
-    toast({
-      title: "Copied",
-      description: `${label} copied to clipboard`,
+    sonnerToast.success("Copied to clipboard", {
+      description: `${label}: ${text.slice(0, 20)}${text.length > 20 ? '...' : ''}`,
+      duration: 2000,
     })
   }
 

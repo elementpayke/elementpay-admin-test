@@ -307,7 +307,7 @@ export default function KYCPage() {
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select country" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Kenya">Kenya</SelectItem>

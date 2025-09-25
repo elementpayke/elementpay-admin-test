@@ -97,7 +97,7 @@ export default function SettingsPage() {
                     <Label>Theme</Label>
                     <Select value={theme} onValueChange={setTheme}>
                       <SelectTrigger className="w-48">
-                        <SelectValue />
+                        <SelectValue placeholder="Select theme" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="light">Light</SelectItem>
@@ -126,7 +126,7 @@ export default function SettingsPage() {
                       <Label>Language</Label>
                       <Select defaultValue="en">
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select language" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="en">English</SelectItem>
@@ -139,7 +139,7 @@ export default function SettingsPage() {
                       <Label>Currency</Label>
                       <Select defaultValue="KES">
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select currency" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="KES">KES - Kenyan Shilling</SelectItem>
@@ -323,7 +323,7 @@ export default function SettingsPage() {
                       onValueChange={(value) => handleSecurityChange('sessionTimeout', value)}
                     >
                       <SelectTrigger className="w-48">
-                        <SelectValue />
+                        <SelectValue placeholder="Select timeout" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="15">15 minutes</SelectItem>

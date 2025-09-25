@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Copy, Check, AlertTriangle, Eye, EyeOff, Download, Shield } from "lucide-react"
+import { Copy, Check, AlertTriangle, Eye, EyeOff, Download, Shield, Globe } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
+import { toast as sonnerToast } from "sonner"
 
 interface ApiKeyRevealModalProps {
   isOpen: boolean
@@ -22,6 +23,8 @@ interface ApiKeyRevealModalProps {
     name: string
     key: string
     environment: string
+    webhookUrl?: string
+    webhookSecret?: string
   } | null
 }
 
@@ -32,12 +35,18 @@ export function ApiKeyRevealModal({ isOpen, onClose, apiKey }: ApiKeyRevealModal
   const [showKey, setShowKey] = useState(true)
   
 
-  const maskedKey = useMemo(() => {
+  const maskValue = useMemo(() => {
     if (!apiKey?.key) return ""
     const k = apiKey.key
     if (k.length <= 8) return k
     return `${k.slice(0, 4)}${"*".repeat(Math.max(0, k.length - 8))}${k.slice(-4)}`
   }, [apiKey?.key])
+
+  const maskWebhookSecret = (secret: string, showFull: boolean = false) => {
+    if (showFull) return secret
+    if (secret.length <= 8) return "*".repeat(secret.length)
+    return "*".repeat(Math.max(8, secret.length - 4)) + secret.slice(-4)
+  }
 
   const handleCopy = async () => {
     if (!apiKey?.key) {
@@ -73,24 +82,24 @@ export function ApiKeyRevealModal({ isOpen, onClose, apiKey }: ApiKeyRevealModal
       }
       
       setCopied(true)
-      toast({
-        title: "API Key Copied",
-        description: "The API key has been copied to your clipboard.",
+      sonnerToast.success("API Key Copied", {
+        description: `API key copied to clipboard`,
+        duration: 2000,
       })
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
-      toast({
-        title: "Copy Failed",
+      sonnerToast.error("Copy Failed", {
         description: "Failed to copy API key to clipboard. Please select and copy manually.",
+        duration: 3000,
       })
     }
   }
 
   const handleDownload = () => {
     if (!apiKey?.key) {
-      toast({
-        title: "Download Failed",
+      sonnerToast.error("Download Failed", {
         description: "No API key available to download.",
+        duration: 2000,
       })
       return
     }
@@ -217,7 +226,7 @@ IMPORTANT: Store this securely. Do not share publicly or commit to version contr
             <div className="p-4 rounded-md border bg-card text-card-foreground">
               {apiKey.key && apiKey.key.trim() ? (
                 <code className="block text-sm font-mono break-all select-all text-foreground">
-                  {showKey ? apiKey.key : maskedKey}
+                  {showKey ? apiKey.key : maskValue}
                 </code>
               ) : (
                 <div className="text-sm text-muted-foreground">
@@ -228,6 +237,66 @@ IMPORTANT: Store this securely. Do not share publicly or commit to version contr
               )}
             </div>
           </div>
+
+          {/* Webhook Configuration */}
+          {(apiKey.webhookUrl || apiKey.webhookSecret) && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">Webhook Configuration</label>
+                <Badge variant="outline" className="text-xs">
+                  Configured
+                </Badge>
+              </div>
+              <div className="space-y-3 p-4 rounded-md border bg-muted/30">
+                {apiKey.webhookUrl && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground uppercase">Webhook URL</div>
+                    <div className="flex items-center justify-between">
+                      <code className="text-sm font-mono break-all flex-1 mr-2 text-foreground">
+                        {apiKey.webhookUrl}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2"
+                        onClick={() => handleCopy(apiKey.webhookUrl!)}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {apiKey.webhookSecret && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground uppercase">Webhook Secret</div>
+                    <div className="flex items-center justify-between">
+                      <code className="text-sm font-mono break-all flex-1 mr-2 text-foreground">
+                        {showKey ? apiKey.webhookSecret : maskWebhookSecret(apiKey.webhookSecret, false)}
+                      </code>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 px-2"
+                          onClick={() => setShowKey((v) => !v)}
+                        >
+                          {showKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 px-2"
+                          onClick={() => handleCopy(showKey ? apiKey.webhookSecret! : maskWebhookSecret(apiKey.webhookSecret!, false))}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Security Warning */}
           <Alert className="border-amber-200 bg-amber-50">

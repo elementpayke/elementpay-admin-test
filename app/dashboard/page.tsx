@@ -30,13 +30,13 @@ const SummaryCard = ({ title, value, icon: Icon, growth, description }: {
   growth?: number
   description?: string
 }) => (
-  <Card className="bg-gray-900/50 border-gray-800 hover:bg-gray-900/70 transition-all duration-200">
+  <Card className="bg-card border-border hover:bg-accent/50 transition-all duration-200">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium text-gray-300">{title}</CardTitle>
-      <Icon className="h-4 w-4 text-purple-400" />
+      <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+      <Icon className="h-4 w-4 text-purple-500 dark:text-purple-400" />
     </CardHeader>
     <CardContent>
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-2xl font-bold text-foreground">{value}</div>
       {(growth !== undefined || description) && (
         <div className="flex items-center space-x-2 mt-2">
           {growth !== undefined && growth > 0 && (
@@ -46,7 +46,7 @@ const SummaryCard = ({ title, value, icon: Icon, growth, description }: {
             </Badge>
           )}
           {description && (
-            <p className="text-xs text-gray-400">{description}</p>
+            <p className="text-xs text-muted-foreground">{description}</p>
           )}
         </div>
       )}
@@ -63,13 +63,13 @@ const ActionButton = ({ icon: Icon, title, description, href, gradient }: {
 }) => (
   <Button
     asChild
-    className={`h-auto p-6 justify-start ${gradient} hover:opacity-90 transition-all duration-200 text-white border-0`}
+    className={`h-auto p-6 justify-start ${gradient} hover:opacity-90 transition-all duration-200 text-white border-0 dark:text-white dark:hover:opacity-90`}
   >
     <Link href={href}>
       <div className="flex flex-col items-start space-y-2">
         <div className="flex items-center space-x-3">
-          <Icon className="h-6 w-6" />
-          <span className="font-semibold text-lg">{title}</span>
+          <Icon className="h-6 w-6 text-white/90" />
+          <span className="font-semibold text-lg text-white">{title}</span>
         </div>
         <span className="text-sm text-white/80">
           {description}
@@ -85,13 +85,13 @@ const BreakdownCard = ({ title, icon: Icon, data, type }: {
   data: any
   type: 'fiat' | 'crypto'
 }) => (
-  <Card className="bg-gray-900/50 border-gray-800">
+  <Card className="bg-card border-border">
     <CardHeader>
-      <CardTitle className="text-lg text-white flex items-center space-x-2">
-        <Icon className="h-5 w-5 text-purple-400" />
+      <CardTitle className="text-lg text-foreground flex items-center space-x-2">
+        <Icon className="h-5 w-5 text-purple-500 dark:text-purple-400" />
         <span>{title}</span>
       </CardTitle>
-      <CardDescription className="text-gray-400">
+      <CardDescription className="text-muted-foreground">
         {type === 'fiat' ? 'Cash disbursement statistics' : 'Digital asset conversion statistics'}
       </CardDescription>
     </CardHeader>
@@ -102,7 +102,7 @@ const BreakdownCard = ({ title, icon: Icon, data, type }: {
           <div key={key} className="space-y-3">
             <div className="flex items-center space-x-3">
               <div className={`w-3 h-3 rounded-full ${type === 'fiat' ? 'bg-yellow-500' : 'bg-blue-500'}`} />
-              <span className="font-medium text-white">{displayName}</span>
+              <span className="font-medium text-foreground">{displayName}</span>
               {value.weekly_growth > 0 && (
                 <Badge className="bg-green-600 text-green-100 hover:bg-green-700 animate-pulse">
                   <TrendingUp className="h-3 w-3 mr-1" />
@@ -112,20 +112,20 @@ const BreakdownCard = ({ title, icon: Icon, data, type }: {
             </div>
             <div className="grid grid-cols-2 gap-4 ml-6">
               <div>
-                <p className="text-sm text-gray-400">Total Volume</p>
-                <p className="text-lg font-semibold text-white">
+                <p className="text-sm text-muted-foreground">Total Volume</p>
+                <p className="text-lg font-semibold text-foreground">
                   {type === 'fiat' ? `KES ${value.total_volume.toLocaleString()}` : `${value.total_volume.toFixed(6)}`}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-400">Settled</p>
-                <p className="text-lg font-semibold text-white">
+                <p className="text-sm text-muted-foreground">Settled</p>
+                <p className="text-lg font-semibold text-foreground">
                   {type === 'fiat' ? `KES ${value.settled_amount.toLocaleString()}` : `${value.settled_amount.toFixed(6)}`}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-400">Transactions</p>
-                <p className="text-lg font-semibold text-white">{value.transaction_count}</p>
+                <p className="text-sm text-muted-foreground">Transactions</p>
+                <p className="text-lg font-semibold text-foreground">{value.transaction_count}</p>
               </div>
             </div>
           </div>
@@ -146,8 +146,8 @@ export default function DashboardPage() {
         <DashboardLayout>
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
-              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-400" />
-              <p className="text-gray-400">Loading dashboard...</p>
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-500 dark:text-purple-400" />
+              <p className="text-muted-foreground">Loading dashboard...</p>
             </div>
           </div>
         </DashboardLayout>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
   const fiatBreakdown = dashboardData?.fiat_breakdown || {}
   const cryptoBreakdown = dashboardData?.crypto_breakdown || {}
 
-  // Quick Actions configuration
+  // Quic                                                                                                                                                                                                                                                                                                                                                                                  k Actions configuration
   const quickActions = [
     {
       icon: ArrowUpRight,
@@ -183,9 +183,9 @@ export default function DashboardPage() {
     },
     {
       icon: DollarSign,
-      title: "Make Payment",
-      description: "Pay with crypto via M-PESA",
-      href: "/dashboard/disbursement",
+      title: "Make Payment ",
+      description: "Pay with crypto via M-PESA (Coming Soon)",
+      href: "/dashboard",
       gradient: "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
     },
     {
@@ -200,15 +200,15 @@ export default function DashboardPage() {
   return (
     <AuthGuard>
       <DashboardLayout>
-        <div className="space-y-8 bg-gray-950 min-h-screen">
+        <div className="space-y-8 bg-background min-h-screen">
           {/* Header Section */}
           <div className="flex flex-col space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-white">
-                  Welcome back, {user?.name || 'User'}!
-                </h1>
-                <p className="text-gray-400 mt-2">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                Welcome back, {user?.name || 'User'}!
+              </h1>
+                <p className="text-muted-foreground mt-2">
                   Here's an overview of your Element Pay activity and quick access to key features.
                 </p>
               </div>
@@ -217,19 +217,19 @@ export default function DashboardPage() {
                 size="sm"
                 onClick={refetch}
                 disabled={isLoading}
-                className="border-gray-700 bg-gray-900/50 text-gray-300 hover:bg-gray-800 hover:text-white"
+                className="border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 text-purple-500 dark:text-purple-400 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
-          </div>
+        </div>
 
           {/* Error State */}
           {error && (
-            <Card className="border-red-800 bg-red-900/20">
+            <Card className="border-destructive/50 bg-destructive/10">
               <CardContent className="pt-6">
-                <div className="text-red-400">
+                <div className="text-destructive">
                   Failed to load dashboard data: {error}
                 </div>
               </CardContent>
@@ -237,7 +237,7 @@ export default function DashboardPage() {
           )}
 
           {/* Summary Cards */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <SummaryCard
               title="Total Transactions"
               value={isLoading ? "..." : summaryData.total_transactions}
@@ -275,25 +275,8 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Quick Actions */}
-          <Card className="bg-gray-900/50 border-gray-800">
-            <CardHeader>
-              <CardTitle className="text-white">Quick Actions</CardTitle>
-              <CardDescription className="text-gray-400">
-                Common tasks and shortcuts to get you started
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {quickActions.map((action, index) => (
-                  <ActionButton key={index} {...action} />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Breakdown Sections */}
-          <div className="grid gap-6 lg:grid-cols-2">
+ {/* Breakdown Sections */}
+          <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-2">
             <BreakdownCard
               title="Fiat Currency Breakdown"
               icon={DollarSign}
@@ -308,7 +291,25 @@ export default function DashboardPage() {
               type="crypto"
             />
           </div>
-        </div>
+          {/* Quick Actions */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground">Quick Actions</CardTitle>
+              <CardDescription className="text-muted-foreground">
+                Common tasks and shortcuts to get you started
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {quickActions.map((action, index) => (
+                  <ActionButton key={index} {...action} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+         
+    </div>
       </DashboardLayout>
     </AuthGuard>
   )
