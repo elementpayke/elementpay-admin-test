@@ -161,6 +161,7 @@ export default function DashboardPage() {
   }
 
   // Extract data from dashboard API response
+  // If there's an error or no data, show zeros
   const summaryData = dashboardData?.summary || {
     total_transactions: 0,
     pending_orders: 0,
@@ -172,15 +173,18 @@ export default function DashboardPage() {
   const fiatBreakdown = dashboardData?.fiat_breakdown || {}
   const cryptoBreakdown = dashboardData?.crypto_breakdown || {}
 
+  // Show error state with zeros when there's an error
+  const hasError = error && !dashboardData
+
   // Quic                                                                                                                                                                                                                                                                                                                                                                                  k Actions configuration
   const quickActions = [
-    {
-      icon: ArrowUpRight,
-      title: "Create Order",
-      description: "Buy or sell crypto instantly",
-      href: "/dashboard/transactions",
-      gradient: "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
-    },
+    // {
+    //   icon: ArrowUpRight,
+    //   title: "Create Order",
+    //   description: "Buy or sell crypto instantly",
+    //   href: "/dashboard/transactions",
+    //   gradient: "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+    // },
     {
       icon: DollarSign,
       title: "Make Payment ",
@@ -215,7 +219,7 @@ export default function DashboardPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={refetch}
+                onClick={() => refetch()}
                 disabled={isLoading}
                 className="border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
               >
@@ -225,12 +229,12 @@ export default function DashboardPage() {
             </div>
         </div>
 
-          {/* Error State */}
-          {error && (
+          {/* Error State - Show only when explicitly needed */}
+          {error && dashboardData && (
             <Card className="border-destructive/50 bg-destructive/10">
-              <CardContent className="pt-6">
-                <div className="text-destructive">
-                  Failed to load dashboard data: {error}
+              <CardContent className="py-3 px-4">
+                <div className="text-destructive text-sm">
+                  Some data may be outdated: {error}
                 </div>
               </CardContent>
             </Card>
@@ -240,21 +244,21 @@ export default function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <SummaryCard
               title="Total Transactions"
-              value={isLoading ? "..." : summaryData.total_transactions}
+              value={isLoading ? "..." : (hasError ? 0 : summaryData.total_transactions)}
               icon={Activity}
               growth={100}
             />
 
             <SummaryCard
               title="Pending Orders"
-              value={isLoading ? "..." : summaryData.pending_orders}
+              value={isLoading ? "..." : (hasError ? 0 : summaryData.pending_orders)}
               icon={Clock}
               description="Awaiting processing"
             />
 
             <SummaryCard
               title="Settled Orders"
-              value={isLoading ? "..." : summaryData.settled_orders}
+              value={isLoading ? "..." : (hasError ? 0 : summaryData.settled_orders)}
               icon={CheckCircle}
               growth={100}
               description="Successfully completed"
@@ -262,32 +266,32 @@ export default function DashboardPage() {
 
             <SummaryCard
               title="Fiat Currencies"
-              value={isLoading ? "..." : summaryData.total_currencies}
+              value={isLoading ? "..." : (hasError ? 0 : summaryData.total_currencies)}
               icon={DollarSign}
               description="Supported currencies"
             />
 
             <SummaryCard
               title="Crypto Tokens"
-              value={isLoading ? "..." : summaryData.total_tokens}
+              value={isLoading ? "..." : (hasError ? 0 : summaryData.total_tokens)}
               icon={Coins}
               description="BASE network"
             />
           </div>
 
- {/* Breakdown Sections */}
+          {/* Breakdown Sections */}
           <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-2">
             <BreakdownCard
               title="Fiat Currency Breakdown"
               icon={DollarSign}
-              data={fiatBreakdown}
+              data={hasError ? {} : fiatBreakdown}
               type="fiat"
             />
 
             <BreakdownCard
               title="Crypto Token Breakdown"
               icon={Coins}
-              data={cryptoBreakdown}
+              data={hasError ? {} : cryptoBreakdown}
               type="crypto"
             />
           </div>
@@ -300,7 +304,7 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
                 {quickActions.map((action, index) => (
                   <ActionButton key={index} {...action} />
                 ))}

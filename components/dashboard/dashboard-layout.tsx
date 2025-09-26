@@ -207,7 +207,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex items-center space-x-4">
             {/* Environment Badge Dropdown */}
             <EnvironmentBadgeDropdown />
-            
+
             {/* Theme Toggle */}
             <ThemeToggle />
             
