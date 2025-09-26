@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { environmentManager, apiClient } from '@/lib/api-config'
+import { environmentManager, apiClient, getCurrentEnvironment } from '@/lib/api-config'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -29,7 +29,11 @@ export async function apiRequest(
   apiKey?: string
 ) {
   const url = `${API_BASE_URL}${endpoint}`
-  const defaultHeaders: HeadersInit = { 'Content-Type': 'application/json' }
+  const currentEnvironment = getCurrentEnvironment()
+  const defaultHeaders: HeadersInit = {
+    'Content-Type': 'application/json',
+    'x-elementpay-environment': currentEnvironment
+  }
   if (apiKey) defaultHeaders['Authorization'] = `Bearer ${apiKey}`
   const config: RequestInit = { ...options, headers: { ...defaultHeaders, ...options.headers } }
   try {
