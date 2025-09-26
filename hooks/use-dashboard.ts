@@ -77,7 +77,7 @@ export function useDashboard(options: UseDashboardOptions = {}) {
       toast({
         title: "Dashboard Error",
         description: errorMessage,
-        variant: "destructive",
+ 
       })
     } finally {
       setIsLoading(false)

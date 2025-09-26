@@ -11,8 +11,8 @@ import { EnvironmentProvider } from "@/components/providers/environment-provider
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Element Pay Dashboard",
-  description: "Element Pay dashboard with authentication and API key management.",
+  title: "Element Pay Console",
+  description: "Element Pay Console with authentication and API key management.",
   generator: 'v0.dev',
   icons: {
     icon: '/favicon.ico',
