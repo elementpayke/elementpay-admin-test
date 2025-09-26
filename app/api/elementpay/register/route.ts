@@ -6,8 +6,12 @@ export async function POST(request: NextRequest) {
     
     console.log('Proxying registration request:', { email: body.email, role: body.role })
     
-    // Use live ElementPay API from environment variable
-    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://api.elementpay.net/api/v1'
+    // Determine environment from request or default to sandbox for registration
+    const isSandbox = body.sandbox === true || body.sandbox === 'true'
+    const elementPayBaseUrl = isSandbox 
+      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
+      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+    
     const registerUrl = `${elementPayBaseUrl}/auth/register`
     
     console.log('Using ElementPay URL:', registerUrl)

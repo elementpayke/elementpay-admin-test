@@ -8,29 +8,44 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { apiKeysClient } from "@/lib/api-keys-client"
-import type { ApiKey, Environment } from "@/lib/types"
+import type { ApiKey } from "@/lib/types"
+import type { Environment as ApiConfigEnvironment } from "@/lib/api-config"
 import { CreateApiKeyDialog } from "./enhanced-create-api-key-dialog"
 import { ApiKeyTable } from "./enhanced-api-key-table"
 import { toast as sonnerToast } from "sonner"
 import { ApiKeyRevealModal } from "./api-key-reveal-modal"
+import { ApiKeyViewModal } from "./api-key-view-modal"
+import { ApiKeyEditModal } from "./api-key-edit-modal"
+import { useEnvironment } from "@/hooks/use-environment"
+import { EnvironmentToggle } from "@/components/ui/environment-toggle"
+
+// Helper function to convert api-config environment to types.ts environment
+const convertEnvironment = (env: ApiConfigEnvironment): "testnet" | "mainnet" => {
+  return env === 'sandbox' ? 'testnet' : 'mainnet'
+}
 
 export default function EnhancedApiKeyManager() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const { environment: apiConfigEnvironment, isSandbox } = useEnvironment()
 
   const client = useMemo(() => apiKeysClient(), [])
   const token = session?.elementPayToken as string | undefined
+
+  // Convert to types.ts environment format
+  const environment = convertEnvironment(apiConfigEnvironment)
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [newKeyForReveal, setNewKeyForReveal] = useState<{
     name: string
     key: string
-    environment: string
+    environment: "testnet" | "mainnet"
+    webhookUrl?: string
+    webhookSecret?: string
   } | null>(null)
-
-  // Only sandbox/testnet is supported for now
-  const environment: Environment = "testnet"
+  const [viewingApiKey, setViewingApiKey] = useState<ApiKey | null>(null)
+  const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null)
 
   const apiKeysQuery = useQuery<ApiKey[]>({
     queryKey: ["apiKeys", environment],
@@ -42,15 +57,33 @@ export default function EnhancedApiKeyManager() {
   })
 
   const createKey = useMutation({
-    mutationFn: async ({ name }: { name: string }) => {
-      console.log('createKey mutation starting with name:', name)
+    mutationFn: async ({
+      name,
+      environment: env,
+      rotate_existing,
+      webhook_url,
+      webhook_secret
+    }: {
+      name: string
+      environment?: "testnet" | "mainnet"
+      rotate_existing?: boolean
+      webhook_url?: string
+      webhook_secret?: string
+    }) => {
+      console.log('createKey mutation starting with:', { name, env, rotate_existing, webhook_url, webhook_secret: webhook_secret ? '[REDACTED]' : undefined })
       if (!token) {
         console.error('No token available')
         throw new Error("Not authenticated")
       }
       console.log('Token available, calling client.create')
       try {
-        const result = await client.create({ name, environment }, token)
+        const result = await client.create({
+          name,
+          environment: env || environment,
+          rotateExisting: rotate_existing,
+          webhookUrl: webhook_url,
+          webhookSecret: webhook_secret
+        }, token)
         console.log('client.create succeeded:', JSON.stringify(result, null, 2))
         return result
       } catch (error) {
@@ -85,12 +118,19 @@ export default function EnhancedApiKeyManager() {
         name: created.name,
         key: created.key,
         environment: created.environment || 'testnet',
+        webhookUrl: created.webhookUrl,
+        webhookSecret: created.webhookSecret,
       }
       console.log('Setting newKeyForReveal to:', JSON.stringify(keyForReveal, null, 2))
       setNewKeyForReveal(keyForReveal)
       setIsCreateOpen(false)
-      sonnerToast.success("API Key Created Successfully", {
-        description: `"${created.name}" has been generated and is ready to use.`,
+      
+      // Determine the key type for better messaging
+      const hasWebhook = created.webhookUrl || created.webhookSecret
+      const keyType = hasWebhook ? 'WebSocket' : 'REST'
+      
+      sonnerToast.success(`${keyType} API Key Created Successfully`, {
+        description: `"${created.name}" has been generated and is ready to use${hasWebhook ? ' with webhook configuration' : ''}.`,
         duration: 5000,
       })
     },
@@ -189,7 +229,7 @@ export default function EnhancedApiKeyManager() {
     onError: (err: any) => {
       console.error('deleteKey onError:', err)
       const errorMessage = err?.message || "Unknown error occurred"
-      
+
       if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
         sonnerToast.error("Delete Permission Denied", {
           description: "You don't have permission to delete this API key.",
@@ -213,6 +253,49 @@ export default function EnhancedApiKeyManager() {
     },
   })
 
+  const updateWebhook = useMutation({
+    mutationFn: async ({ id, webhookUrl, webhookSecret }: {
+      id: string
+      webhookUrl?: string
+      webhookSecret?: string
+    }) => {
+      if (!token) throw new Error("Not authenticated")
+      return client.updateWebhook(id, { webhookUrl, webhookSecret }, token)
+    },
+    onSuccess: (updatedKey) => {
+      queryClient.invalidateQueries({ queryKey: ["apiKeys", environment] })
+      sonnerToast.success("Webhook Updated", {
+        description: "Webhook configuration has been updated successfully.",
+        duration: 4000,
+      })
+    },
+    onError: (err: any) => {
+      console.error('updateWebhook onError:', err)
+      const errorMessage = err?.message || "Unknown error occurred"
+
+      if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
+        sonnerToast.error("Update Permission Denied", {
+          description: "You don't have permission to update this API key.",
+          duration: 6000,
+        })
+      } else if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+        sonnerToast.error("API Key Not Found", {
+          description: "The API key you're trying to update no longer exists.",
+          duration: 6000,
+        })
+      } else {
+        sonnerToast.error("Update Failed", {
+          description: errorMessage,
+          duration: 6000,
+          action: {
+            label: "Try Again",
+            onClick: () => queryClient.invalidateQueries({ queryKey: ["apiKeys", environment] })
+          }
+        })
+      }
+    },
+  })
+
   // Unsupported operations in Element Pay API: regenerate/revoke. We surface helpful errors.
   const regenerateKey = useMutation({
     mutationFn: async (_id: string) => {
@@ -220,6 +303,24 @@ export default function EnhancedApiKeyManager() {
     },
   onError: (err: any) => toast({ title: "Not supported", description: err.message, type: "destructive" }),
   })
+
+  // Handler functions for modal actions
+  const handleViewApiKey = (apiKey: ApiKey) => {
+    setViewingApiKey(apiKey)
+  }
+
+  const handleEditApiKey = (apiKey: ApiKey) => {
+    setEditingApiKey(apiKey)
+  }
+
+  const handleUpdateWebhook = async (apiKeyId: string, webhookUrl: string, webhookSecret: string) => {
+    await updateWebhook.mutateAsync({
+      id: apiKeyId,
+      webhookUrl: webhookUrl || undefined,
+      webhookSecret: webhookSecret || undefined
+    })
+    setEditingApiKey(null)
+  }
 
   // Debug logging - moved here after all variables are declared
   console.log('EnhancedApiKeyManager render - session:', !!session)
@@ -229,12 +330,19 @@ export default function EnhancedApiKeyManager() {
   console.log('createKey.isError:', createKey.isError)
   console.log('createKey.isSuccess:', createKey.isSuccess)
   console.log('newKeyForReveal:', newKeyForReveal)
+  console.log('viewingApiKey:', viewingApiKey?.name)
+  console.log('editingApiKey:', editingApiKey?.name)
 
   useEffect(() => {
     if (!token) return
     // warm cache
     queryClient.prefetchQuery({ queryKey: ["apiKeys", environment], queryFn: () => client.list(environment, token) })
   }, [token, environment, client, queryClient])
+
+  // Invalidate queries when environment changes
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["apiKeys"] })
+  }, [environment, queryClient])
 
   if (!token) {
     return (
@@ -263,36 +371,34 @@ export default function EnhancedApiKeyManager() {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                   API Keys
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
-                    Sandbox
+                  <Badge variant="secondary" className={isSandbox ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-green-100 text-green-700 border-green-200"}>
+                    {isSandbox ? 'Sandbox' : 'Live'}
                   </Badge>
                 </h2>
-                <p className="text-gray-600">Manage your ElementPay sandbox integration keys</p>
+                <p className="text-gray-600">Manage your ElementPay {isSandbox ? 'sandbox' : 'live'} integration keys</p>
               </div>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>Sandbox Environment</span>
-            </div>
-            <Button 
+          
+            
+            <Button
               onClick={() => setIsCreateOpen(true)}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Create API Key
+              Create New API Key
             </Button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <Card className="border-0 shadow-lg bg-white/50 backdrop-blur-sm">
-        <CardContent className="p-6">
+      <Card className="border-none shadow-none   ">
+        <CardContent className="p-0 shadow-none border-none">
           {apiKeysQuery.isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="flex items-center gap-3">
@@ -324,6 +430,8 @@ export default function EnhancedApiKeyManager() {
               onRegenerate={(id) => regenerateKey.mutate(id)}
               onRevoke={(id) => deleteKey.mutate(id)}
               onDelete={(id) => deleteKey.mutate(id)}
+              onView={handleViewApiKey}
+              onEdit={handleEditApiKey}
               isRegenerating={regenerateKey.isPending}
               isDeleting={deleteKey.isPending}
             />
@@ -333,26 +441,47 @@ export default function EnhancedApiKeyManager() {
       <CreateApiKeyDialog
         isOpen={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        onCreate={({ name }) => {
-          console.log('CreateApiKeyDialog onCreate called with name:', name)
+        onCreate={({ name, environment, rotate_existing, webhook_url, webhook_secret }) => {
+          console.log('CreateApiKeyDialog onCreate called with:', { name, environment, rotate_existing, webhook_url, webhook_secret: webhook_secret ? '[REDACTED]' : undefined })
           console.log('createKey object:', createKey)
           console.log('createKey.mutate exists:', typeof createKey.mutate === 'function')
           console.log('About to call createKey.mutate')
           try {
-            createKey.mutate({ name })
+            createKey.mutate({
+              name,
+              environment,
+              rotate_existing,
+              webhook_url,
+              webhook_secret
+            })
             console.log('createKey.mutate called successfully')
           } catch (error) {
             console.error('Error calling createKey.mutate:', error)
           }
         }}
         isCreating={createKey.isPending}
-        defaultEnvironment={environment}
+        defaultEnvironment={environment as "testnet" | "mainnet"}
       />
 
       <ApiKeyRevealModal
         isOpen={!!newKeyForReveal}
         onClose={() => setNewKeyForReveal(null)}
         apiKey={newKeyForReveal}
+      />
+
+      <ApiKeyViewModal
+        isOpen={!!viewingApiKey}
+        onClose={() => setViewingApiKey(null)}
+        onEdit={handleEditApiKey}
+        apiKey={viewingApiKey}
+      />
+
+      <ApiKeyEditModal
+        isOpen={!!editingApiKey}
+        onClose={() => setEditingApiKey(null)}
+        onSave={handleUpdateWebhook}
+        apiKey={editingApiKey}
+        isLoading={updateWebhook.isPending}
       />
     </div>
   )

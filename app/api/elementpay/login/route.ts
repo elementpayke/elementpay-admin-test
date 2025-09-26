@@ -31,8 +31,7 @@ export async function POST(request: NextRequest) {
       ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
       : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
     
-
-    const loginUrl = `${elementPayBaseUrl}${isSandbox ? '/auth/login' : '/auth/login'}`
+    const loginUrl = `${elementPayBaseUrl}/auth/login`
     
     console.log('Using ElementPay URL:', loginUrl)
     console.log('Environment:', isSandbox ? 'SANDBOX' : 'LIVE')

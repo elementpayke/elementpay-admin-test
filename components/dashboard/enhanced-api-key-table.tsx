@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Trash, RefreshCw, Eye, EyeOff, AlertTriangle } from "lucide-react"
+import { Trash, RefreshCw, Eye, EyeOff, AlertTriangle, Settings, Info } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,18 +15,22 @@ interface ApiKeyTableProps {
   onRegenerate: (id: string) => void
   onRevoke: (id: string) => void
   onDelete: (id: string) => void
+  onView: (apiKey: ApiKey) => void
+  onEdit: (apiKey: ApiKey) => void
   isRegenerating: boolean
   isDeleting: boolean
 }
 
-export function ApiKeyTable({ 
-  apiKeys, 
-  environment, 
-  onRegenerate, 
-  onRevoke, 
-  onDelete, 
-  isRegenerating, 
-  isDeleting 
+export function ApiKeyTable({
+  apiKeys,
+  environment,
+  onRegenerate,
+  onRevoke,
+  onDelete,
+  onView,
+  onEdit,
+  isRegenerating,
+  isDeleting
 }: ApiKeyTableProps) {
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set())
 
@@ -218,15 +222,30 @@ export function ApiKeyTable({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => onRegenerate(apiKey.id)}
-                                  disabled={isRegenerating}
-                                  className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                                  onClick={() => onView(apiKey)}
+                                  className="h-8 w-8 p-0 hover:bg-green-50 hover:text-green-600"
                                 >
-                                  <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`} />
+                                  <Info className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Regenerate key</TooltipContent>
+                              <TooltipContent>View details</TooltipContent>
                             </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onEdit(apiKey)}
+                                  className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                                >
+                                  <Settings className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit webhook config</TooltipContent>
+                            </Tooltip>
+
+                           
 
                             <AlertDialog>
                               <AlertDialogTrigger asChild>

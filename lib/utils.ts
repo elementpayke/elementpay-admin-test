@@ -1,21 +1,24 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { environmentManager, apiClient } from '@/lib/api-config'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Environment configuration for Element Pay (runtime switchable)
-const SANDBOX_BASE = process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
-const LIVE_BASE = process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
-let currentEnv: 'sandbox' | 'live' = (process.env.NEXT_PUBLIC_ELEMENTPAY_ENV || 'sandbox').toLowerCase() === 'live' ? 'live' : 'sandbox'
-
+// Legacy environment functions for backwards compatibility
 export function setElementPayEnvironment(env: 'sandbox' | 'live') {
-  currentEnv = env
+  environmentManager.switchEnvironment(env)
 }
+
 export function getElementPayEnvironment() {
-  return { active: currentEnv, baseUrl: currentEnv === 'live' ? LIVE_BASE : SANDBOX_BASE }
+  const config = environmentManager.getCurrentConfig()
+  return { 
+    active: config.environment, 
+    baseUrl: config.baseUrl 
+  }
 }
+
 
 // Local proxy base (relative)
 export const API_BASE_URL = "/api/elementpay"
@@ -44,12 +47,6 @@ export async function apiRequest(
   }
 }
 
-// External (direct) calls requiring API keys (bypassing internal proxy)
-function ext(path: string) {
-  const { baseUrl } = getElementPayEnvironment()
-  return `${baseUrl}${path}`
-}
-
 export const elementPayAPI = {
   // Auth via internal proxy
   register: (data: { email: string; password: string; role?: string }) =>
@@ -70,19 +67,25 @@ export const elementPayAPI = {
     apiRequest('/me', { method: 'GET', headers: { Authorization: `Bearer ${token}` } }),
   healthCheck: () => apiRequest('/me', { method: 'GET' }),
 
-  // External corrected paths (use dynamic env)
-  createOrder: (orderData: any, apiKey: string) => fetch(ext('/orders/create'), {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }, body: JSON.stringify(orderData)
-  }),
-  createOrderLegacy: (payload: any, apiKey: string) => fetch(ext('/orders/create-legacy'), {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }, body: JSON.stringify(payload)
-  }),
-  getOrderByTxHash: (txHash: string, apiKey: string) => fetch(ext(`/orders/tx/${txHash}`), { headers: { 'x-api-key': apiKey } }),
-  getOrderStatus: (orderId: string, apiKey: string) => fetch(ext(`/orders/${orderId}`), { headers: { 'x-api-key': apiKey } }),
-  getOrdersForWallet: (apiKey: string) => fetch(ext('/orders/wallet'), { headers: { 'x-api-key': apiKey } }),
+  // External API calls that use the new API client
+  createOrder: (orderData: any, apiKey: string) => 
+    apiClient.apiKeyRequest('/orders/create', apiKey, { method: 'POST', body: JSON.stringify(orderData) }),
+  createOrderLegacy: (payload: any, apiKey: string) => 
+    apiClient.apiKeyRequest('/orders/create-legacy', apiKey, { method: 'POST', body: JSON.stringify(payload) }),
+  getOrderByTxHash: (txHash: string, apiKey: string) => 
+    apiClient.apiKeyRequest(`/orders/tx/${txHash}`, apiKey),
+  getOrderStatus: (orderId: string, apiKey: string) => 
+    apiClient.apiKeyRequest(`/orders/${orderId}`, apiKey),
+  getOrdersForWallet: (apiKey: string) => 
+    apiClient.apiKeyRequest('/orders/wallet', apiKey),
 
-  getRates: (apiKey?: string) => fetch(ext('/rates'), { method: 'GET', headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) } }),
-  testWebhook: (webhookData: any, apiKey?: string) => fetch(ext('/webhooks/test'), { method: 'POST', headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) }, body: JSON.stringify(webhookData) }),
+  getRates: (apiKey?: string) => 
+    apiKey ? apiClient.apiKeyRequest('/rates', apiKey) : apiClient.get('/rates'),
+  testWebhook: (webhookData: any, apiKey?: string) => 
+    apiKey 
+      ? apiClient.apiKeyRequest('/webhooks/test', apiKey, { method: 'POST', body: JSON.stringify(webhookData) })
+      : apiClient.post('/webhooks/test', webhookData),
 
-  listApiKeys: (apiKey: string) => fetch(ext('/api-keys'), { headers: { 'x-api-key': apiKey } }),
+  listApiKeys: (apiKey: string) => 
+    apiClient.apiKeyRequest('/api-keys', apiKey),
 }

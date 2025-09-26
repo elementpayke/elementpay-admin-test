@@ -1,4 +1,5 @@
 import type { ApiKey, Environment } from "./types"
+import { getCurrentEnvironment } from "./api-config"
 
 /**
  * Element Pay API Keys client using user authentication
@@ -23,6 +24,9 @@ interface ElementPayApiKey {
 interface CreateElementPayKeyRequest {
   name: string
   environment: 'testnet' | 'mainnet'
+  rotate_existing?: boolean
+  webhook_url?: string
+  webhook_secret?: string
 }
 
 interface UpdateWebhookRequest {
@@ -30,8 +34,19 @@ interface UpdateWebhookRequest {
   webhook_secret?: string
 }
 
-const DEFAULT_HEADERS: HeadersInit = { 
+const DEFAULT_HEADERS: HeadersInit = {
   'Content-Type': 'application/json'
+}
+
+/**
+ * Get headers with current environment
+ */
+function getHeadersWithEnvironment(additionalHeaders?: HeadersInit): HeadersInit {
+  return {
+    ...DEFAULT_HEADERS,
+    'x-elementpay-environment': getCurrentEnvironment(),
+    ...additionalHeaders
+  }
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -85,7 +100,10 @@ function convertElementPayKey(epKey: ElementPayApiKey): ApiKey {
 
 export interface CreateApiKeyInput { 
   name: string
-  environment: Environment 
+  environment: Environment
+  rotateExisting?: boolean
+  webhookUrl?: string
+  webhookSecret?: string
 }
 
 export interface UpdateWebhookInput {
@@ -113,14 +131,14 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         throw new Error('User authentication token is required')
       }
 
-      // Don't send environment parameter - it's determined by the API endpoint URL
-      const url = '/api/elementpay/api-keys'
-        
+      // Pass environment as query parameter to the API endpoint
+      const isSandbox = environment === 'testnet' || environment === 'sandbox'
+      const url = `/api/elementpay/api-keys?sandbox=${isSandbox}`
+
       const res = await fetchImpl(url, {
-        headers: {
-          ...DEFAULT_HEADERS,
+        headers: getHeadersWithEnvironment({
           'Authorization': `Bearer ${userToken}`
-        }
+        })
       })
       
       const response = await handleResponse<{
@@ -151,21 +169,26 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
       }
 
       // Don't send environment parameter - it's determined by the API endpoint URL
-      const requestBody = {
-        name: input.name
+      const requestBody: CreateElementPayKeyRequest = {
+        name: input.name,
+        environment: 'testnet', // This will be ignored by the API endpoint
+        ...(input.rotateExisting !== undefined && { rotate_existing: input.rotateExisting }),
+        ...(input.webhookUrl && { webhook_url: input.webhookUrl }),
+        ...(input.webhookSecret && { webhook_secret: input.webhookSecret })
       }
       
-      const url = '/api/elementpay/api-keys'
+      // Pass environment as query parameter to the API endpoint
+      const isSandbox = input.environment === 'testnet' || input.environment === 'sandbox'
+      const url = `/api/elementpay/api-keys?sandbox=${isSandbox}`
       console.log('Making POST request to:', url)
       console.log('Request body:', JSON.stringify(requestBody))
       console.log('Headers:', { ...DEFAULT_HEADERS, 'Authorization': `Bearer ${userToken ? 'present' : 'missing'}` })
       
       const res = await fetchImpl(url, {
         method: 'POST',
-        headers: {
-          ...DEFAULT_HEADERS,
+        headers: getHeadersWithEnvironment({
           'Authorization': `Bearer ${userToken}`
-        },
+        }),
         body: JSON.stringify(requestBody),
       })
       
@@ -250,12 +273,11 @@ export const apiKeysClient = (config: ApiKeysClientConfig = {}) => {
         throw new Error('User authentication token is required')
       }
 
-      const res = await fetchImpl(`/api/elementpay/api-keys/${id}`, { 
+      const res = await fetchImpl(`/api/elementpay/api-keys/${id}`, {
         method: 'DELETE',
-        headers: {
-          ...DEFAULT_HEADERS,
+        headers: getHeadersWithEnvironment({
           'Authorization': `Bearer ${userToken}`
-        }
+        })
       })
       
       if (!res.ok) {

@@ -2,20 +2,39 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { EnvironmentToggle, EnvironmentIndicator } from "@/components/ui/environment-toggle"
+import { useEnvironment } from "@/hooks/use-environment"
 import { toast as sonnerToast } from "sonner"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function SignupForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { environment, isSandbox, switchToSandbox, switchToLive } = useEnvironment()
+
+  useEffect(() => {
+    const sandboxParam = searchParams.get('sandbox')
+    if (sandboxParam === 'true') {
+      switchToSandbox()
+      sonnerToast.info("Sandbox Mode", {
+        description: "You're signing up for ElementPay's sandbox environment.",
+        duration: 5000,
+      })
+    }
+  }, [searchParams, switchToSandbox])
   
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,9 +42,9 @@ export default function SignupForm() {
     setIsLoading(true)
 
     // Basic validation
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
       sonnerToast.error("Missing Information", {
-        description: "Please enter both email and password.",
+        description: "Please fill in all required fields.",
         duration: 4000,
       })
       setIsLoading(false)
@@ -53,6 +72,16 @@ export default function SignupForm() {
       return
     }
 
+    // Confirm password validation
+    if (password !== confirmPassword) {
+      sonnerToast.error("Passwords Don't Match", {
+        description: "Please ensure both password fields match.",
+        duration: 4000,
+      })
+      setIsLoading(false)
+      return
+    }
+
     try {
       // Show loading toast for longer operations
       const loadingToast = sonnerToast.loading("Creating Account...", {
@@ -67,7 +96,8 @@ export default function SignupForm() {
         body: JSON.stringify({ 
           email: email.trim().toLowerCase(), 
           password: password.trim(),
-          role: "developer" // Default role
+          role: "developer", // Default role
+          sandbox: environment === 'sandbox'
         }),
       })
 
@@ -137,6 +167,36 @@ export default function SignupForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Environment Toggle */}
+      <div className="flex justify-center mb-4">
+        <EnvironmentToggle
+          variant="badge-buttons"
+          size="md"
+          showLabels={true}
+          showIcons={true}
+          disabled={isLoading}
+        />
+      </div>
+
+      {/* Environment Info Banner */}
+      {isSandbox && (
+        <div className="bg-blue-50 border border-blue-200 text-center rounded-lg p-3 mb-4">
+         
+          <p className="text-xs text-blue-600">
+            You're creating a sandbox account for testing and development.
+          </p>
+        </div>
+      )}
+
+      {!isSandbox && (
+        <div className="bg-green-50 border border-green-200 text-center rounded-lg p-3 mb-4">
+          
+          <p className="text-xs text-green-600">
+            You're creating a live production account.
+          </p>
+        </div>
+      )}
+
       <div>
         <Label htmlFor="email">Email</Label>
         <Input
@@ -151,17 +211,70 @@ export default function SignupForm() {
       </div>
       <div>
         <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={isLoading}
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            onClick={() => setShowPassword(!showPassword)}
+            disabled={isLoading}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            )}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Password must be at least 8 characters long.
+        </p>
       </div>
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Signing up..." : "Sign Up"}
+      <div>
+        <Label htmlFor="confirmPassword">Confirm Password</Label>
+        <div className="relative">
+          <Input
+            id="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={isLoading}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            disabled={isLoading}
+          >
+            {showConfirmPassword ? (
+              <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+            )}
+          </button>
+        </div>
+        {confirmPassword && password !== confirmPassword && (
+          <p className="text-xs text-red-500 mt-1">
+            Passwords do not match.
+          </p>
+        )}
+      </div>
+      <Button 
+        type="submit" 
+        className={`w-full ${isSandbox ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`} 
+        disabled={isLoading}
+      >
+        {isLoading ? "Creating Account..." : isSandbox ? "Sign Up for Sandbox" : "Sign Up for Live"}
       </Button>
     </form>
   )

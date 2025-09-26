@@ -2,6 +2,7 @@ import SignupForm from "@/components/auth/signup-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import Image from "next/image"
+import { Suspense } from "react"
 
 export default function SignupPage() {
   return (
@@ -15,7 +16,9 @@ export default function SignupPage() {
           <CardDescription>Sign up for Element Pay account.</CardDescription>
         </CardHeader>
         <CardContent>
-          <SignupForm />
+          <Suspense fallback={<div>Loading...</div>}>
+            <SignupForm />
+          </Suspense>
           <div className="mt-4 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link href="/auth/login" className="underline">
