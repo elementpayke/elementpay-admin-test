@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import AuthGuard from "@/components/auth/auth-guard"
@@ -81,14 +81,18 @@ export default function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [orderTypeFilter, setOrderTypeFilter] = useState("all")
 
-  // Debug logging
-  console.log('Filter states:', { statusFilter, orderTypeFilter })
-  const [limit, setLimit] = useState(50)
-  const [offset, setOffset] = useState(0)
+  const [limit, setLimit] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalOrders, setTotalOrders] = useState(0)
+  const [manualPageInput, setManualPageInput] = useState("")
+
+  // Calculate offset from current page
+  const offset = (currentPage - 1) * limit
 
   // Fetch orders using React Query
   const ordersQuery = useQuery({
-    queryKey: ["orders", { statusFilter, orderTypeFilter, limit, offset, environment: apiConfigEnvironment }],
+    queryKey: ["orders", { statusFilter, orderTypeFilter, limit, currentPage, environment: apiConfigEnvironment, offset }],
     enabled: !!token,
     queryFn: async () => {
       if (!token) throw new Error("Not authenticated")
@@ -100,8 +104,62 @@ export default function TransactionsPage() {
         offset,
       }
 
-      const apiOrders = await client.list(filters, token, isSandbox)
-      return apiOrders.map(convertApiOrderToOrder)
+      const response = await client.list(filters, token, isSandbox)
+
+      // The orders client returns the full response object
+      if (response) {
+        let ordersData: ApiOrder[] = []
+        let totalCount = 0
+        let hasMore = false
+
+        // Handle both response formats
+        if (Array.isArray(response)) {
+          // Legacy format - response is just an array
+          ordersData = response
+          totalCount = response.length
+          hasMore = response.length === limit
+          // Update pagination state
+          setTotalOrders(totalCount)
+          setTotalPages(Math.ceil(totalCount / limit))
+        } else {
+          // Response is an object, try to extract data
+          const responseObj = response as any
+
+          if (Array.isArray(responseObj.data)) {
+            // Legacy format - data is just an array
+            ordersData = responseObj.data
+            totalCount = responseObj.data.length
+            hasMore = responseObj.data.length === limit
+          } else if (responseObj.data?.orders && Array.isArray(responseObj.data.orders)) {
+            // New format with pagination metadata
+            ordersData = responseObj.data.orders
+            totalCount = responseObj.data.total || ordersData.length
+            hasMore = responseObj.data.has_more || false
+
+            // Update pagination state based on response
+            setTotalOrders(totalCount)
+            setTotalPages(Math.ceil(totalCount / limit))
+            console.log('Updated pagination state:', {
+              totalCount,
+              totalPages: Math.ceil(totalCount / limit),
+              currentPage,
+              limit
+            })
+          }
+
+          // Update pagination state for non-paginated responses
+          if (totalCount > 0 && !responseObj.data?.total) {
+            setTotalOrders(totalCount)
+            setTotalPages(Math.ceil(totalCount / limit))
+          }
+        }
+
+        return ordersData.map(convertApiOrderToOrder)
+      }
+
+      // Fallback
+      console.log('No valid response data, returning empty array')
+      return []
     },
   })
 
@@ -241,7 +299,77 @@ export default function TransactionsPage() {
     })
   }
 
-  const filteredTransactions = transactions.filter((transaction) => {
+  // Pagination helper functions
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page)
+    }
+  }
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1)
+    }
+  }
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1)
+    }
+  }
+
+  const handlePageSizeChange = (newLimit: number) => {
+    setLimit(newLimit)
+    setCurrentPage(1) // Reset to first page when changing page size
+    setManualPageInput("") // Clear manual page input
+  }
+
+  const handleManualPageSubmit = () => {
+    const pageNum = parseInt(manualPageInput)
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      handlePageChange(pageNum)
+      setManualPageInput("")
+    }
+  }
+
+  const handleManualPageKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleManualPageSubmit()
+    }
+  }
+
+  // Generate page numbers for pagination
+  const getVisiblePageNumbers = () => {
+    const pages: (number | string)[] = []
+    const maxVisiblePages = 5
+
+    // Ensure totalPages is at least 1
+    const actualTotalPages = Math.max(totalPages, 1)
+
+    if (actualTotalPages <= maxVisiblePages) {
+      // Show all pages if total is small
+      for (let i = 1; i <= actualTotalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      // Show ellipsis pattern
+      if (currentPage <= 3) {
+        // Near beginning: 1, 2, 3, ..., last
+        pages.push(1, 2, 3, '...', actualTotalPages)
+      } else if (currentPage >= actualTotalPages - 2) {
+        // Near end: 1, ..., last-2, last-1, last
+        pages.push(1, '...', actualTotalPages - 2, actualTotalPages - 1, actualTotalPages)
+      } else {
+        // Middle: 1, ..., current-1, current, current+1, ..., last
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', actualTotalPages)
+      }
+    }
+
+    return pages
+  }
+
+
+  const filteredTransactions = transactions.filter((transaction: Order) => {
     const matchesSearch = transaction.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       transaction.transaction_hash?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       transaction.fiat_payload.phone_number?.includes(searchTerm)
@@ -533,7 +661,8 @@ export default function TransactionsPage() {
                 <CardHeader>
                   <CardTitle>Transaction History</CardTitle>
                   <CardDescription>
-                    {filteredTransactions.length} transaction(s) found
+                    {ordersQuery.isLoading ? 'Loading transactions...' :
+                     `${filteredTransactions.length} transaction(s) found (${totalOrders} total)`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -581,7 +710,7 @@ export default function TransactionsPage() {
                               </TableCell>
                             </TableRow>
                           ) : (
-                            filteredTransactions.map((transaction) => (
+                            filteredTransactions.map((transaction: Order) => (
                           <TableRow key={transaction.id}>
                             <TableCell>
                               <div className="flex items-center space-x-2">
@@ -784,6 +913,106 @@ export default function TransactionsPage() {
                       </Table>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Pagination Controls - Always visible */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {/* Page Size Selector */}
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="pageSize">Show:</Label>
+                      <Select
+                        value={limit.toString()}
+                        onValueChange={(value) => handlePageSizeChange(parseInt(value))}
+                      >
+                        <SelectTrigger className="w-20" id="pageSize">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                          <SelectItem value="200">200</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-sm text-muted-foreground">per page</span>
+                    </div>
+
+                    {/* Page Information */}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>
+                        Showing {((currentPage - 1) * limit) + 1}-{Math.min(currentPage * limit, totalOrders)} of {totalOrders} orders
+                      </span>
+                    </div>
+
+                    {/* Pagination Navigation */}
+                    <div className="flex items-center gap-2">
+                      {/* Previous Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePreviousPage}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+
+                      {/* Manual Page Input */}
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="pageInput" className="text-sm">Page:</Label>
+                        <Input
+                          id="pageInput"
+                          type="number"
+                          min="1"
+                          max={Math.max(totalPages, 1)}
+                          value={manualPageInput}
+                          onChange={(e) => setManualPageInput(e.target.value)}
+                          onKeyPress={handleManualPageKeyPress}
+                          className="w-16 h-8 text-sm"
+                          placeholder={currentPage.toString()}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleManualPageSubmit}
+                          disabled={!manualPageInput || parseInt(manualPageInput) < 1 || parseInt(manualPageInput) > totalPages}
+                          className="h-8 px-2 text-xs"
+                        >
+                          Go
+                        </Button>
+                        <span className="text-sm text-muted-foreground">of {Math.max(totalPages, 1)}</span>
+                      </div>
+
+                      {/* Page Numbers */}
+                      <div className="flex items-center gap-1">
+                        {getVisiblePageNumbers().map((page, index) => (
+                          <Button
+                            key={index}
+                            variant={page === currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => typeof page === 'number' && handlePageChange(page)}
+                            disabled={page === '...'}
+                            className="min-w-[32px] h-8 text-sm"
+                          >
+                            {page}
+                          </Button>
+                        ))}
+                      </div>
+
+                      {/* Next Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNextPage}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

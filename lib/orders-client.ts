@@ -107,29 +107,8 @@ export const ordersClient = (config: OrdersClientConfig = {}) => {
 
       console.log('Orders client received response:', response)
 
-      // Handle API response format
-      if (response.data) {
-        // Check if data is an array (flattened response from our API)
-        if (Array.isArray(response.data)) {
-          console.log('Returning orders:', response.data.length, 'orders found')
-          return response.data
-        }
-        
-        // Check if data has orders property (paginated response)
-        if (typeof response.data === 'object' && 'orders' in response.data && Array.isArray(response.data.orders)) {
-          console.log('Returning orders from paginated response:', response.data.orders.length, 'orders found')
-          return response.data.orders
-        }
-      }
-
-      // Fallback for different response formats
-      if (Array.isArray(response)) {
-        console.log('Response is direct array, returning as orders')
-        return response as ApiOrder[]
-      }
-
-      console.log('No orders found in response, returning empty array')
-      return []
+      // Return the full response object so the component can access both orders and pagination metadata
+      return response
     }
   }
 }

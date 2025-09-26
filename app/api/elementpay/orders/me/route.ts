@@ -80,14 +80,20 @@ export async function GET(req: NextRequest) {
     if (result.status === "success" && result.data) {
       // Check if data has orders array (paginated response)
       if (result.data.orders && Array.isArray(result.data.orders)) {
-        console.log('Returning orders:', result.data.orders.length, 'orders found')
+        console.log('Returning paginated orders:', result.data.orders.length, 'orders found')
         return NextResponse.json({
           status: "success",
           message: result.message || "Orders fetched successfully",
-          data: result.data.orders  // Extract orders array from nested structure
+          data: {
+            orders: result.data.orders,
+            total: result.data.total,
+            limit: result.data.limit,
+            offset: result.data.offset,
+            has_more: result.data.has_more
+          }
         })
       }
-      
+
       // Check if data is directly an array (non-paginated response)
       if (Array.isArray(result.data)) {
         console.log('Returning orders:', result.data.length, 'orders found')
