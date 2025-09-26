@@ -2,6 +2,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { useCallback } from "react"
+import { getCurrentEnvironment } from "@/lib/api-config"
 
 export function useAuth() {
   const { data: session, status, update } = useSession()
@@ -51,12 +52,15 @@ export function useAuth() {
       throw new Error('No authentication token available')
     }
 
+    const currentEnvironment = getCurrentEnvironment()
+
     const response = await fetch(url, {
       ...options,
       headers: {
         ...options.headers,
         'Authorization': `Bearer ${elementPayToken}`,
         'Content-Type': 'application/json',
+        'x-elementpay-environment': currentEnvironment,
       },
     })
 
@@ -70,6 +74,7 @@ export function useAuth() {
           ...options.headers,
           'Authorization': `Bearer ${session?.elementPayToken}`,
           'Content-Type': 'application/json',
+          'x-elementpay-environment': currentEnvironment,
         },
       })
       return retryResponse
