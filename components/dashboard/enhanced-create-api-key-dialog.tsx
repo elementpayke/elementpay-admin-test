@@ -97,8 +97,7 @@ export function CreateApiKeyDialog({
   const [showWebhookSecret, setShowWebhookSecret] = useState(false)
   const [rotateExisting, setRotateExisting] = useState(false)
   
-  // For now, we only support testnet
-  const environment: Environment = "testnet"
+  const environment: Environment = defaultEnvironment || "testnet"
   
   // Password strength calculation
   const passwordStrength = useMemo(() => {
@@ -168,7 +167,7 @@ export function CreateApiKeyDialog({
         <DialogHeader>
           <DialogTitle>Create New API Key</DialogTitle>
           <DialogDescription>
-            Create a new API key for ElementPay sandbox environment. Choose between REST API or WebSocket connections.
+            Create a new API key for ElementPay {environment === "mainnet" ? "production" : "sandbox"} environment. Choose between REST API or WebSocket connections.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -322,20 +321,30 @@ export function CreateApiKeyDialog({
             <div className="space-y-3">
               <Label>Environment</Label>
               <div className="flex items-center space-x-3 border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/20">
-                <TestTube className="h-5 w-5 text-blue-600" />
+                {environment === "mainnet" ? (
+                  <Globe className="h-5 w-5 text-green-600" />
+                ) : (
+                  <TestTube className="h-5 w-5 text-blue-600" />
+                )}
                 <div className="flex items-center justify-between w-full">
                   <div>
-                    <div className="font-medium">Testnet (Sandbox)</div>
-                    <p className="text-sm text-muted-foreground">Development and testing environment</p>
+                    <div className="font-medium">
+                      {environment === "mainnet" ? "Mainnet (Production)" : "Testnet (Sandbox)"}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {environment === "mainnet" ? "Live production environment" : "Development and testing environment"}
+                    </p>
                   </div>
-                  <Badge variant="secondary" className="bg-blue-600 text-white">
-                    Sandbox
+                  <Badge variant="secondary" className={environment === "mainnet" ? "bg-green-600 text-white" : "bg-blue-600 text-white"}>
+                    {environment === "mainnet" ? "Production" : "Sandbox"}
                   </Badge>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Mainnet (Production) keys are not available yet. Coming soon!
-              </p>
+              {environment === "testnet" && (
+                <p className="text-xs text-muted-foreground">
+                  Mainnet (Production) keys are not available yet. Coming soon!
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
