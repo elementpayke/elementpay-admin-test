@@ -49,8 +49,8 @@ export function ApiKeyTable({
     setRevealedKeys(newRevealed)
   }
 
-  const getEnvironmentBadge = (env: Environment) => {
-    return env === "mainnet" ? (
+  const getEnvironmentBadge = (currentEnv: Environment) => {
+    return currentEnv === "mainnet" ? (
       <Badge variant="default" className="bg-green-600">Production</Badge>
     ) : (
       <Badge variant="secondary" className="bg-blue-600">Sandbox</Badge>
@@ -200,7 +200,7 @@ export function ApiKeyTable({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>{getEnvironmentBadge(apiKey.environment)}</TableCell>
+                    <TableCell>{getEnvironmentBadge(environment)}</TableCell>
                     <TableCell>{getStatusBadge(apiKey.status)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       <div className="flex flex-col">
