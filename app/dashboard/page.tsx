@@ -1,12 +1,18 @@
-"use client"
+"use client";
 
-import AuthGuard from "@/components/auth/auth-guard"
-import DashboardLayout from "@/components/dashboard/dashboard-layout"
-import { useAuth } from "@/hooks/use-auth"
-import { useDashboard } from "@/hooks/use-dashboard"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import AuthGuard from "@/components/auth/auth-guard";
+import DashboardLayout from "@/components/dashboard/dashboard-layout";
+import { useAuth } from "@/hooks/use-auth";
+import { useDashboard } from "@/hooks/use-dashboard";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Activity,
   CreditCard,
@@ -19,20 +25,28 @@ import {
   Coins,
   Wallet,
   Settings,
-} from "lucide-react"
-import Link from "next/link"
+} from "lucide-react";
+import Link from "next/link";
 
 // Reusable components
-const SummaryCard = ({ title, value, icon: Icon, growth, description }: {
-  title: string
-  value: string | number
-  icon: any
-  growth?: number
-  description?: string
+const SummaryCard = ({
+  title,
+  value,
+  icon: Icon,
+  growth,
+  description,
+}: {
+  title: string;
+  value: string | number;
+  icon: any;
+  growth?: number;
+  description?: string;
 }) => (
   <Card className="bg-card border-border hover:bg-accent/50 transition-all duration-200">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+      <CardTitle className="text-sm font-medium text-muted-foreground">
+        {title}
+      </CardTitle>
       <Icon className="h-4 w-4 text-purple-500 dark:text-purple-400" />
     </CardHeader>
     <CardContent>
@@ -41,8 +55,7 @@ const SummaryCard = ({ title, value, icon: Icon, growth, description }: {
         <div className="flex items-center space-x-2 mt-2">
           {growth !== undefined && growth > 0 && (
             <Badge className="bg-green-600 text-green-100 hover:bg-green-700 animate-pulse">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +{growth}%
+              <TrendingUp className="h-3 w-3 mr-1" />+{growth}%
             </Badge>
           )}
           {description && (
@@ -52,14 +65,20 @@ const SummaryCard = ({ title, value, icon: Icon, growth, description }: {
       )}
     </CardContent>
   </Card>
-)
+);
 
-const ActionButton = ({ icon: Icon, title, description, href, gradient }: {
-  icon: any
-  title: string
-  description: string
-  href: string
-  gradient: string
+const ActionButton = ({
+  icon: Icon,
+  title,
+  description,
+  href,
+  gradient,
+}: {
+  icon: any;
+  title: string;
+  description: string;
+  href: string;
+  gradient: string;
 }) => (
   <Button
     asChild
@@ -71,19 +90,22 @@ const ActionButton = ({ icon: Icon, title, description, href, gradient }: {
           <Icon className="h-6 w-6 text-white/90" />
           <span className="font-semibold text-lg text-white">{title}</span>
         </div>
-        <span className="text-sm text-white/80">
-          {description}
-        </span>
+        <span className="text-sm text-white/80">{description}</span>
       </div>
     </Link>
   </Button>
-)
+);
 
-const BreakdownCard = ({ title, icon: Icon, data, type }: {
-  title: string
-  icon: any
-  data: any
-  type: 'fiat' | 'crypto'
+const BreakdownCard = ({
+  title,
+  icon: Icon,
+  data,
+  type,
+}: {
+  title: string;
+  icon: any;
+  data: any;
+  type: "fiat" | "crypto";
 }) => (
   <Card className="bg-card border-border">
     <CardHeader>
@@ -92,21 +114,29 @@ const BreakdownCard = ({ title, icon: Icon, data, type }: {
         <span>{title}</span>
       </CardTitle>
       <CardDescription className="text-muted-foreground">
-        {type === 'fiat' ? 'Cash disbursement statistics' : 'Digital asset conversion statistics'}
+        {type === "fiat"
+          ? "Cash disbursement statistics"
+          : "Digital asset conversion statistics"}
       </CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">
       {Object.entries(data).map(([key, value]: [string, any]) => {
-        const displayName = type === 'fiat' ? key : key.replace('(Testnet)', '').replace('_', ' ')
+        const displayName =
+          type === "fiat"
+            ? key
+            : key.replace("(Testnet)", "").replace("_", " ");
         return (
           <div key={key} className="space-y-3">
             <div className="flex items-center space-x-3">
-              <div className={`w-3 h-3 rounded-full ${type === 'fiat' ? 'bg-yellow-500' : 'bg-blue-500'}`} />
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  type === "fiat" ? "bg-yellow-500" : "bg-blue-500"
+                }`}
+              />
               <span className="font-medium text-foreground">{displayName}</span>
               {value.weekly_growth > 0 && (
                 <Badge className="bg-green-600 text-green-100 hover:bg-green-700 animate-pulse">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +{value.weekly_growth}%
+                  <TrendingUp className="h-3 w-3 mr-1" />+{value.weekly_growth}%
                 </Badge>
               )}
             </div>
@@ -114,30 +144,36 @@ const BreakdownCard = ({ title, icon: Icon, data, type }: {
               <div>
                 <p className="text-sm text-muted-foreground">Total Volume</p>
                 <p className="text-lg font-semibold text-foreground">
-                  {type === 'fiat' ? `KES ${value.total_volume.toLocaleString()}` : `${value.total_volume.toFixed(6)}`}
+                  {type === "fiat"
+                    ? `KES ${value.total_volume.toLocaleString()}`
+                    : `${value.total_volume.toFixed(6)}`}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Settled</p>
                 <p className="text-lg font-semibold text-foreground">
-                  {type === 'fiat' ? `KES ${value.settled_amount.toLocaleString()}` : `${value.settled_amount.toFixed(6)}`}
+                  {type === "fiat"
+                    ? `KES ${value.settled_amount.toLocaleString()}`
+                    : `${value.settled_amount.toFixed(6)}`}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Transactions</p>
-                <p className="text-lg font-semibold text-foreground">{value.transaction_count}</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {value.transaction_count}
+                </p>
               </div>
             </div>
           </div>
-        )
+        );
       })}
     </CardContent>
   </Card>
-)
+);
 
 export default function DashboardPage() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
-  const { dashboardData, isLoading, error, refetch } = useDashboard()
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { dashboardData, isLoading, error, refetch } = useDashboard();
 
   // Show loading while authentication is being checked
   if (authLoading) {
@@ -152,12 +188,12 @@ export default function DashboardPage() {
           </div>
         </DashboardLayout>
       </AuthGuard>
-    )
+    );
   }
 
   // Don't render if not authenticated
   if (!isAuthenticated) {
-    return null
+    return null;
   }
 
   // Extract data from dashboard API response
@@ -167,14 +203,14 @@ export default function DashboardPage() {
     pending_orders: 0,
     settled_orders: 0,
     total_currencies: 0,
-    total_tokens: 0
-  }
+    total_tokens: 0,
+  };
 
-  const fiatBreakdown = dashboardData?.fiat_breakdown || {}
-  const cryptoBreakdown = dashboardData?.crypto_breakdown || {}
+  const fiatBreakdown = dashboardData?.fiat_breakdown || {};
+  const cryptoBreakdown = dashboardData?.crypto_breakdown || {};
 
   // Show error state with zeros when there's an error
-  const hasError = error && !dashboardData
+  const hasError = error && !dashboardData;
 
   // Quic                                                                                                                                                                                                                                                                                                                                                                                  k Actions configuration
   const quickActions = [
@@ -190,16 +226,18 @@ export default function DashboardPage() {
       title: "Make Payment ",
       description: "Pay with crypto via M-PESA (Coming Soon)",
       href: "/dashboard",
-      gradient: "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+      gradient:
+        "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800",
     },
     {
       icon: Settings,
       title: "Manage API Keys",
       description: "Create and manage your API keys",
       href: "/dashboard/api-keys",
-      gradient: "bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800"
-    }
-  ]
+      gradient:
+        "bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800",
+    },
+  ];
 
   return (
     <AuthGuard>
@@ -210,10 +248,11 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                Welcome back, {user?.name || 'User'}!
-              </h1>
+                  Welcome back, {user?.name || "User"}!
+                </h1>
                 <p className="text-muted-foreground mt-2">
-                  Here's an overview of your Element Pay activity and quick access to key features.
+                  Here's an overview of your Element Pay activity and quick
+                  access to key features.
                 </p>
               </div>
               <Button
@@ -223,11 +262,15 @@ export default function DashboardPage() {
                 disabled={isLoading}
                 className="border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 text-purple-500 dark:text-purple-400 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 text-purple-500 dark:text-purple-400 ${
+                    isLoading ? "animate-spin" : ""
+                  }`}
+                />
                 Refresh
               </Button>
             </div>
-        </div>
+          </div>
 
           {/* Error State - Show only when explicitly needed */}
           {error && dashboardData && (
@@ -244,21 +287,31 @@ export default function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <SummaryCard
               title="Total Transactions"
-              value={isLoading ? "..." : (hasError ? 0 : summaryData.total_transactions)}
+              value={
+                isLoading
+                  ? "..."
+                  : hasError
+                  ? 0
+                  : summaryData.total_transactions
+              }
               icon={Activity}
               growth={100}
             />
 
             <SummaryCard
               title="Pending Orders"
-              value={isLoading ? "..." : (hasError ? 0 : summaryData.pending_orders)}
+              value={
+                isLoading ? "..." : hasError ? 0 : summaryData.pending_orders
+              }
               icon={Clock}
               description="Awaiting processing"
             />
 
             <SummaryCard
               title="Settled Orders"
-              value={isLoading ? "..." : (hasError ? 0 : summaryData.settled_orders)}
+              value={
+                isLoading ? "..." : hasError ? 0 : summaryData.settled_orders
+              }
               icon={CheckCircle}
               growth={100}
               description="Successfully completed"
@@ -266,14 +319,18 @@ export default function DashboardPage() {
 
             <SummaryCard
               title="Fiat Currencies"
-              value={isLoading ? "..." : (hasError ? 0 : summaryData.total_currencies)}
+              value={
+                isLoading ? "..." : hasError ? 0 : summaryData.total_currencies
+              }
               icon={DollarSign}
               description="Supported currencies"
             />
 
             <SummaryCard
               title="Crypto Tokens"
-              value={isLoading ? "..." : (hasError ? 0 : summaryData.total_tokens)}
+              value={
+                isLoading ? "..." : hasError ? 0 : summaryData.total_tokens
+              }
               icon={Coins}
               description="BASE network"
             />
@@ -311,10 +368,8 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-
-         
-    </div>
+        </div>
       </DashboardLayout>
     </AuthGuard>
-  )
+  );
 }

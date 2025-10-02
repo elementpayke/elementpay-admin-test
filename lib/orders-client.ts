@@ -6,7 +6,7 @@ interface OrdersClientConfig {
 }
 
 interface OrdersFilter {
-  status_filter?: OrderStatus | null
+  status?: OrderStatus | null
   order_type?: "onramp" | "offramp" | null
   limit?: number
   offset?: number
@@ -83,7 +83,7 @@ export const ordersClient = (config: OrdersClientConfig = {}) => {
       params.set('sandbox', isSandbox.toString())
 
       // Add filter parameters
-      if (filters.status_filter) params.set('status_filter', filters.status_filter)
+      if (filters.status) params.set('status', filters.status)
       if (filters.order_type) params.set('order_type', filters.order_type)
       if (filters.limit) params.set('limit', filters.limit.toString())
       if (filters.offset) params.set('offset', filters.offset.toString())
