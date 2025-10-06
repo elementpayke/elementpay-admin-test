@@ -75,7 +75,7 @@ const convertApiOrderToOrder = (apiOrder: ApiOrder): Order => {
     id: apiOrder.order_id,
     user_address: apiOrder.wallet_address,
     token: apiOrder.token as Token,
-    order_type: apiOrder.order_type === "OnRamp" ? 0 : 1,
+    order_type: apiOrder.order_type as OrderType,
     status: apiOrder.status,
     amount_crypto: apiOrder.amount_crypto,
     amount_fiat: apiOrder.amount_fiat,
@@ -159,44 +159,27 @@ export default function TransactionsPage() {
         let ordersData: ApiOrder[] = [];
         let totalCount = 0;
         let hasMore = false;
+        // Response is an object, try to extract data
+        const responseObj = response as any;
 
-        // Handle both response formats
-        if (Array.isArray(response)) {
-          // Legacy format - response is just an array
-          ordersData = response;
-          totalCount = response.length;
-          hasMore = response.length === limit;
-          // Update pagination state
+        if (
+          responseObj.data?.orders &&
+          Array.isArray(responseObj.data.orders)
+        ) {
+          // New format with pagination metadata
+          ordersData = responseObj.data.orders;
+          totalCount = responseObj.data.total || ordersData.length;
+          hasMore = responseObj.data.has_more || false;
+
+          // Update pagination state based on response
           setTotalOrders(totalCount);
           setTotalPages(Math.ceil(totalCount / limit));
-        } else {
-          // Response is an object, try to extract data
-          const responseObj = response as any;
-
-          if (Array.isArray(responseObj.data)) {
-            // Legacy format - data is just an array
-            ordersData = responseObj.data;
-            totalCount = responseObj.data.length;
-            hasMore = responseObj.data.length === limit;
-          } else if (
-            responseObj.data?.orders &&
-            Array.isArray(responseObj.data.orders)
-          ) {
-            // New format with pagination metadata
-            ordersData = responseObj.data.orders;
-            totalCount = responseObj.data.total || ordersData.length;
-            hasMore = responseObj.data.has_more || false;
-
-            // Update pagination state based on response
-            setTotalOrders(totalCount);
-            setTotalPages(Math.ceil(totalCount / limit));
-            console.log("Updated pagination state:", {
-              totalCount,
-              totalPages: Math.ceil(totalCount / limit),
-              currentPage,
-              limit,
-            });
-          }
+          console.log("Updated pagination state:", {
+            totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            currentPage,
+            limit,
+          });
 
           // Update pagination state for non-paginated responses
           if (totalCount > 0 && !responseObj.data?.total) {

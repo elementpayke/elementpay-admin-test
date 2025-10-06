@@ -56,7 +56,6 @@ const SummaryCard = ({
           {growth !== undefined && growth > 0 && (
             <Badge className="bg-green-600 text-green-100 hover:bg-green-700 animate-pulse">
               <TrendingUp className="h-3 w-3 mr-1" />+{growth}%
-              <TrendingUp className="h-3 w-3 mr-1" />+{growth}%
             </Badge>
           )}
           {description && (
@@ -419,7 +418,7 @@ export default function DashboardPage() {
                   : summaryData.total_transactions
               }
               icon={Activity}
-              growth={100}
+              // growth={100}
             />
 
             <SummaryCard
@@ -437,7 +436,6 @@ export default function DashboardPage() {
                 isLoading ? "..." : hasError ? 0 : summaryData.settled_orders
               }
               icon={CheckCircle}
-              growth={100}
               description="Successfully completed"
             />
 
