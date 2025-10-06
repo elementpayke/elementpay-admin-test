@@ -45,108 +45,70 @@ function normalizeChainKey(chainName = "") {
 /**
  * Build links from mapping
  */
-function buildLinksFromMap(mapping: any, txOrAddress: string, env: string, tokenObj: any) {
-  const explorerBase = mapping.env[env] || mapping.env["live"];
-  const paths = mapping.paths || { tx: "/tx/", address: "/address/", token: "/token/" };
+// Simple chain-to-explorer URL mapping
+const CHAIN_EXPLORER_MAP: { [key: string]: string } = {
+  "BASE": "https://basescan.org",
+  "LISK": "https://blockscout.lisk.com",
+  "SCROLL": "https://scrollscan.com",
+  "ETHEREUM": "https://etherscan.io",
+  "ARBITRUM": "https://arbiscan.io",
+};
 
-  // normalize txOrAddress: detect whether it's a tx hash (starts with 0x and length ~66) or an address/contract
-  const isTx = /^0x([A-Fa-f0-9]{64})$/.test(txOrAddress);
-  const isAddress = /^0x([A-Fa-f0-9]{40})$/.test(txOrAddress);
-
-  const txUrl = isTx ? `${explorerBase}${paths.tx}${txOrAddress}` : null;
-  const addressUrl = isAddress ? `${explorerBase}${paths.address}${txOrAddress}` : null;
-
-  // For token contract URL: if tokenObj.address available use it; else null
-  const tokenAddr = tokenObj.address;
-  const tokenUrl = tokenAddr ? `${explorerBase}${paths.token}${tokenAddr}` : null;
-
-  return { explorerBase, txUrl, addressUrl, tokenUrl, tokenObj };
-}
+const TESTNET_EXPLORER_MAP: { [key: string]: string } = {
+  "BASE": "https://sepolia.basescan.org",
+  "LISK": "https://sepolia.blockscout.lisk.com",
+  "SCROLL": "https://sepolia.scrollscan.com",
+  "ETHEREUM": "https://sepolia.etherscan.io",
+  "ARBITRUM": "https://sepolia.arbiscan.io",
+};
 
 /**
- * generateExplorerLinks
- * - input: token (object from tokens API OR string like "BASE_USDC"), txHash or address,
- *          env: "live" | "sandbox"
- * - output: { explorerBase, txUrl, addressUrl, tokenUrl }
- *
- * Notes:
- * - Explorer paths use common patterns: /tx/<hash>, /address/<address>, /token/<address>.
- * - If an explorer uses different paths, add per-chain overrides in EXPLORER_MAP.
+ * generateExplorerLinks - Simplified version
+ * 
+ * @param token - Token string like "BASE_USDC" or "LISK_USDT"
+ * @param txHash - Transaction hash (assumes all hashes are tx hashes)
+ * @returns Object with explorer base URL and transaction URL
  */
-export function generateExplorerLinks({
-  tokenInput,
-  txOrAddress,
-  env = "live",
-  tokensList = [],
-  chainsList = []
-}: {
-  tokenInput: any;
-  txOrAddress: string;
-  env?: "live" | "sandbox";
-  tokensList?: any[];
-  chainsList?: any[];
-}) {
-  if (!tokenInput) throw new Error("tokenInput is required (token object or 'CHAIN_TOKEN' string)");
-  if (!txOrAddress) throw new Error("txOrAddress (tx hash or address) is required");
-
-  // If tokenInput is an object (from API), use it directly
-  let tokenObj = null;
-  if (typeof tokenInput === "object" && tokenInput !== null) {
-    tokenObj = tokenInput;
-  } else if (typeof tokenInput === "string") {
-    // tokenInput like "BASE_USDC" or "Base_USDC" or just "USDC"
-    const parts = tokenInput.split(/[_\s-]+/);
-    if (parts.length >= 2) {
-      // first part likely chain name, second token symbol
-      const [chainPart, symbolPart] = parts;
-      // try to find a matching token entry from tokensList
-      if (tokensList && tokensList.length) {
-        tokenObj = tokensList.find(
-          (t: any) =>
-            String(t.symbol).toLowerCase() === String(symbolPart).toLowerCase() &&
-            (String(t.chain_name).toLowerCase() === String(chainPart).toLowerCase() ||
-             String(t.chain_name).toLowerCase().includes(String(chainPart).toLowerCase()))
-        );
-      }
-      // fallback minimal token object
-      if (!tokenObj) tokenObj = { symbol: symbolPart.toUpperCase(), chain_name: chainPart, env };
-    } else {
-      // just a symbol like "USDC" — try to find the first token in tokensList
-      if (tokensList && tokensList.length) {
-        tokenObj = tokensList.find((t: any) => String(t.symbol).toLowerCase() === tokenInput.toLowerCase()) || tokensList[0];
-      } else {
-        tokenObj = { symbol: tokenInput.toUpperCase(), chain_name: "unknown", env };
-      }
-    }
-  } else {
-    throw new Error("tokenInput must be an object or string");
-  }
-
-  const chainKey = normalizeChainKey(tokenObj.chain_name || "");
-  const mapping = EXPLORER_MAP[chainKey as keyof typeof EXPLORER_MAP];
-
-  if (!mapping) {
-    // try to resolve by chain_id using chainsList (if provided)
-    if (tokenObj.chain_id && chainsList && chainsList.length) {
-      const chainInfo = chainsList.find((c: any) => Number(c.chain_id) === Number(tokenObj.chain_id));
-      if (chainInfo) {
-        const ck = normalizeChainKey(chainInfo.name);
-        if (EXPLORER_MAP[ck as keyof typeof EXPLORER_MAP]) {
-          return buildLinksFromMap(EXPLORER_MAP[ck as keyof typeof EXPLORER_MAP], txOrAddress, env, tokenObj);
-        }
-      }
-    }
-    // unknown chain - return null + hint
+export function generateExplorerLinks(token: string, txHash: string, env: string) {
+  if (!token || !txHash) {
     return {
       explorerBase: null,
       txUrl: null,
-      addressUrl: null,
-      tokenUrl: null,
-      message: `No explorer mapping for chain '${tokenObj.chain_name}' (chainKey=${chainKey}). Add one to EXPLORER_MAP.`
+      error: "Token and txHash are required"
     };
   }
 
-  return buildLinksFromMap(mapping, txOrAddress, env, tokenObj);
+  // Split token by "_" to get chain name
+  const parts = token.split('_');
+  if (parts.length < 2) {
+    return {
+      explorerBase: null,
+      txUrl: null,
+      error: "Token format should be 'CHAIN_SYMBOL' (e.g., 'BASE_USDC')"
+    };
+  }
+
+  const chainName = parts[0].toUpperCase();
+  const explorerBase = env === "sandbox" ? TESTNET_EXPLORER_MAP[chainName] : CHAIN_EXPLORER_MAP[chainName];
+
+  if (!explorerBase) {
+    return {
+      explorerBase: null,
+      txUrl: null,
+      error: `No explorer mapping found for chain: ${chainName}. Add it to CHAIN_EXPLORER_MAP.`
+    };
+  }
+
+  // Assume all hashes are transaction hashes
+  const txUrl = `${explorerBase}/tx/0x${txHash.toLowerCase()}`;
+  console.log('txUrl', txUrl);
+
+  return {
+    explorerBase,
+    txUrl,
+    chainName,
+    error: null
+  };
 }
 
 export function cn(...inputs: ClassValue[]) {

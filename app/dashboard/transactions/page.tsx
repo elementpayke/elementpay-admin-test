@@ -903,7 +903,7 @@ export default function TransactionsPage() {
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="outline">
-                                    {transaction.order_type === 0
+                                    {transaction.order_type == 0
                                       ? "OnRamp"
                                       : "OffRamp"}
                                   </Badge>
@@ -1075,15 +1075,14 @@ export default function TransactionsPage() {
                                             {selectedOrder.creation_transaction_hash &&
                                               (() => {
                                                 const explorerLinks =
-                                                  generateExplorerLinks({
-                                                    tokenInput:
-                                                      selectedOrder.token,
-                                                    txOrAddress:
-                                                      selectedOrder.creation_transaction_hash!,
-                                                    env: isSandbox
+                                                  generateExplorerLinks(
+                                                    selectedOrder.token,
+                                                    selectedOrder.creation_transaction_hash!,
+
+                                                    isSandbox
                                                       ? "sandbox"
-                                                      : "live",
-                                                  });
+                                                      : "live"
+                                                  );
                                                 return explorerLinks.txUrl ? (
                                                   <div>
                                                     <Label>
@@ -1147,14 +1146,11 @@ export default function TransactionsPage() {
                                               if (!hashToUse) return null;
 
                                               const explorerLinks =
-                                                generateExplorerLinks({
-                                                  tokenInput:
-                                                    selectedOrder.token,
-                                                  txOrAddress: hashToUse,
-                                                  env: isSandbox
-                                                    ? "sandbox"
-                                                    : "live",
-                                                });
+                                                generateExplorerLinks(
+                                                  selectedOrder.token,
+                                                  hashToUse,
+                                                  isSandbox ? "sandbox" : "live"
+                                                );
 
                                               return explorerLinks.txUrl ? (
                                                 <div>
@@ -1353,11 +1349,11 @@ export default function TransactionsPage() {
                                       }
 
                                       const explorerLinks =
-                                        generateExplorerLinks({
-                                          tokenInput: transaction.token,
-                                          txOrAddress: hashToUse,
-                                          env: isSandbox ? "sandbox" : "live",
-                                        });
+                                        generateExplorerLinks(
+                                          transaction.token,
+                                          hashToUse,
+                                          isSandbox ? "sandbox" : "live"
+                                        );
 
                                       return explorerLinks.txUrl ? (
                                         <Button
