@@ -40,7 +40,6 @@ export async function GET(req: NextRequest) {
     const elementPayUrl = `${elementPayBaseUrl}/users/me/orders${queryString ? `?${queryString}` : ''}`
 
     console.log('Element Pay Orders URL:', elementPayUrl)
-
     const response = await fetch(elementPayUrl, {
       method: 'GET',
       headers: {
