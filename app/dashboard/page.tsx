@@ -96,18 +96,6 @@ const ActionButton = ({
     </Link>
   </Button>
 );
-);
-
-const BreakdownCard = ({
-  title,
-  icon: Icon,
-  data,
-  type,
-}: {
-  title: string;
-  icon: any;
-  data: any;
-  type: "fiat" | "crypto";
 const BreakdownCard = ({
   title,
   icon: Icon,
