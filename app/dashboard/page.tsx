@@ -56,6 +56,7 @@ const SummaryCard = ({
           {growth !== undefined && growth > 0 && (
             <Badge className="bg-green-600 text-green-100 hover:bg-green-700 animate-pulse">
               <TrendingUp className="h-3 w-3 mr-1" />+{growth}%
+              <TrendingUp className="h-3 w-3 mr-1" />+{growth}%
             </Badge>
           )}
           {description && (
@@ -95,7 +96,18 @@ const ActionButton = ({
     </Link>
   </Button>
 );
+);
 
+const BreakdownCard = ({
+  title,
+  icon: Icon,
+  data,
+  type,
+}: {
+  title: string;
+  icon: any;
+  data: any;
+  type: "fiat" | "crypto";
 const BreakdownCard = ({
   title,
   icon: Icon,

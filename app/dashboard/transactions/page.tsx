@@ -19,13 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -57,11 +50,13 @@ import {
   ArrowUpDown,
   Eye,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { ordersClient } from "@/lib/orders-client";
 import { useEnvironment } from "@/hooks/use-environment";
+import { generateExplorerLinks } from "@/lib/utils";
 import type {
   ApiOrder,
   Order,
@@ -88,6 +83,9 @@ const convertApiOrderToOrder = (apiOrder: ApiOrder): Order => {
     transaction_hash:
       apiOrder.creation_transaction_hash ||
       apiOrder.settlement_transaction_hash,
+    creation_transaction_hash: apiOrder.creation_transaction_hash,
+    settlement_transaction_hash: apiOrder.settlement_transaction_hash,
+    refund_transaction_hash: apiOrder.refund_transaction_hash,
     fiat_payload: {
       amount_fiat: apiOrder.amount_fiat,
       cashout_type: "PHONE" as CashoutType, // Default, API doesn't provide this
@@ -145,7 +143,7 @@ export default function TransactionsPage() {
 
       const filters = {
         ...(statusFilter !== "all" && {
-          status_filter: statusFilter as OrderStatus,
+          status: statusFilter as OrderStatus,
         }),
         ...(orderTypeFilter !== "all" && {
           order_type: orderTypeFilter as "onramp" | "offramp",
@@ -550,21 +548,23 @@ export default function TransactionsPage() {
                   {/* Token Selection */}
                   <div className="space-y-2">
                     <Label htmlFor="token">Token</Label>
-                    <Select
+                    <select
                       value={orderForm.token}
-                      onValueChange={(value: Token) =>
-                        setOrderForm((prev) => ({ ...prev, token: value }))
+                      onChange={(e) =>
+                        setOrderForm((prev) => ({
+                          ...prev,
+                          token: e.target.value as Token,
+                        }))
                       }
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a token" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="BASE_USDC">BASE USDC</SelectItem>
-                        <SelectItem value="ETH">Ethereum (ETH)</SelectItem>
-                        <SelectItem value="BTC">Bitcoin (BTC)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <option value="" disabled>
+                        Select a token
+                      </option>
+                      <option value="BASE_USDC">BASE USDC</option>
+                      <option value="ETH">Ethereum (ETH)</option>
+                      <option value="BTC">Bitcoin (BTC)</option>
+                    </select>
                   </div>
 
                   {/* Amount */}
@@ -587,26 +587,23 @@ export default function TransactionsPage() {
                   {/* Cashout Type */}
                   <div className="space-y-2">
                     <Label htmlFor="cashoutType">Cashout Type</Label>
-                    <Select
+                    <select
                       value={orderForm.cashoutType}
-                      onValueChange={(value: CashoutType) =>
+                      onChange={(e) =>
                         setOrderForm((prev) => ({
                           ...prev,
-                          cashoutType: value,
+                          cashoutType: e.target.value as CashoutType,
                         }))
                       }
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select cashout type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PHONE">
-                          Mobile Money (Phone)
-                        </SelectItem>
-                        <SelectItem value="TILL">Till Number</SelectItem>
-                        <SelectItem value="PAYBILL">Paybill</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <option value="" disabled>
+                        Select cashout type
+                      </option>
+                      <option value="PHONE">Mobile Money (Phone)</option>
+                      <option value="TILL">Till Number</option>
+                      <option value="PAYBILL">Paybill</option>
+                    </select>
                   </div>
 
                   {/* Phone Number */}
@@ -773,45 +770,32 @@ export default function TransactionsPage() {
                         />
                       </div>
                     </div>
-                    <Select
+                    <select
                       value={statusFilter}
-                      onValueChange={setStatusFilter}
-                      defaultValue="all"
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       key={`status-${statusFilter}`}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="processing">Processing</SelectItem>
-                        <SelectItem value="settled">Settled</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="success">Success</SelectItem>
-                        <SelectItem value="failed">Failed</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                        <SelectItem value="settled_unverified">
-                          Settled Unverified
-                        </SelectItem>
-                        <SelectItem value="refunded">Refunded</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
+                      <option value="all">All Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="processing">Processing</option>
+                      <option value="settled">Settled</option>
+                      <option value="failed">Failed</option>
+                      <option value="settled_unverified">
+                        Settled Unverified
+                      </option>
+                      <option value="refunded">Refunded</option>
+                    </select>
+                    <select
                       value={orderTypeFilter}
-                      onValueChange={setOrderTypeFilter}
-                      defaultValue="all"
+                      onChange={(e) => setOrderTypeFilter(e.target.value)}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       key={`type-${orderTypeFilter}`}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter by type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="onramp">OnRamp (Buy)</SelectItem>
-                        <SelectItem value="offramp">OffRamp (Sell)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <option value="all">All Types</option>
+                      <option value="onramp">OnRamp (Buy)</option>
+                      <option value="offramp">OffRamp (Sell)</option>
+                    </select>
                     <Button variant="outline" className="w-full sm:w-auto">
                       <Download className="h-4 w-4 mr-2" />
                       Export
@@ -1087,6 +1071,118 @@ export default function TransactionsPage() {
                                               </div>
                                             )}
 
+                                            {/* Creation Transaction Hash */}
+                                            {selectedOrder.creation_transaction_hash &&
+                                              (() => {
+                                                const explorerLinks =
+                                                  generateExplorerLinks({
+                                                    tokenInput:
+                                                      selectedOrder.token,
+                                                    txOrAddress:
+                                                      selectedOrder.creation_transaction_hash!,
+                                                    env: isSandbox
+                                                      ? "sandbox"
+                                                      : "live",
+                                                  });
+                                                return explorerLinks.txUrl ? (
+                                                  <div>
+                                                    <Label>
+                                                      Creation Transaction
+                                                    </Label>
+                                                    <div className="flex items-center space-x-2 mt-1">
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                          window.open(
+                                                            explorerLinks.txUrl!,
+                                                            "_blank"
+                                                          )
+                                                        }
+                                                        className="flex items-center gap-2"
+                                                      >
+                                                        <ExternalLink className="h-3 w-3" />
+                                                        View On Chain
+                                                      </Button>
+                                                      <span className="font-mono text-xs text-muted-foreground truncate">
+                                                        {selectedOrder.creation_transaction_hash.slice(
+                                                          0,
+                                                          10
+                                                        )}
+                                                        ...
+                                                        {selectedOrder.creation_transaction_hash.slice(
+                                                          -8
+                                                        )}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                ) : null;
+                                              })()}
+
+                                            {/* Settlement/Refund Transaction Link */}
+                                            {(() => {
+                                              const status =
+                                                selectedOrder.status.toLowerCase();
+                                              let hashToUse = null;
+                                              let linkLabel = "";
+
+                                              if (
+                                                status === "settled" &&
+                                                selectedOrder.settlement_transaction_hash
+                                              ) {
+                                                hashToUse =
+                                                  selectedOrder.settlement_transaction_hash;
+                                                linkLabel =
+                                                  "Settlement Transaction";
+                                              } else if (
+                                                status === "refunded" &&
+                                                selectedOrder.refund_transaction_hash
+                                              ) {
+                                                hashToUse =
+                                                  selectedOrder.refund_transaction_hash;
+                                                linkLabel =
+                                                  "Refund Transaction";
+                                              }
+
+                                              if (!hashToUse) return null;
+
+                                              const explorerLinks =
+                                                generateExplorerLinks({
+                                                  tokenInput:
+                                                    selectedOrder.token,
+                                                  txOrAddress: hashToUse,
+                                                  env: isSandbox
+                                                    ? "sandbox"
+                                                    : "live",
+                                                });
+
+                                              return explorerLinks.txUrl ? (
+                                                <div>
+                                                  <Label>{linkLabel}</Label>
+                                                  <div className="flex items-center space-x-2 mt-1">
+                                                    <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        window.open(
+                                                          explorerLinks.txUrl!,
+                                                          "_blank"
+                                                        )
+                                                      }
+                                                      className="flex items-center gap-2"
+                                                    >
+                                                      <ExternalLink className="h-3 w-3" />
+                                                      View On Chain
+                                                    </Button>
+                                                    <span className="font-mono text-xs text-muted-foreground truncate">
+                                                      {hashToUse.slice(0, 10)}
+                                                      ...{hashToUse.slice(-8)}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              ) : null;
+                                            })()}
+
                                             <div>
                                               <Label>Payment Details</Label>
                                               <div className="mt-2 space-y-2 text-sm bg-muted/30 p-3 rounded-md">
@@ -1179,6 +1275,116 @@ export default function TransactionsPage() {
                                       </DialogContent>
                                     </Dialog>
 
+                                    {(() => {
+                                      const status =
+                                        transaction.status.toLowerCase();
+                                      let hashToUse = null;
+                                      let tooltipText = "";
+                                      let isDisabled = false;
+
+                                      // Determine which hash to use based on status and availability
+                                      if (
+                                        status === "settled" &&
+                                        transaction.settlement_transaction_hash
+                                      ) {
+                                        hashToUse =
+                                          transaction.settlement_transaction_hash;
+                                        tooltipText =
+                                          "View settlement transaction on blockchain explorer";
+                                      } else if (
+                                        status === "refunded" &&
+                                        transaction.refund_transaction_hash
+                                      ) {
+                                        hashToUse =
+                                          transaction.refund_transaction_hash;
+                                        tooltipText =
+                                          "View refund transaction on blockchain explorer";
+                                      } else if (status === "failed") {
+                                        isDisabled = true;
+                                        tooltipText =
+                                          "❌ Transaction failed - No blockchain record available";
+                                      } else if (
+                                        status === "settled_unverified"
+                                      ) {
+                                        isDisabled = true;
+                                        tooltipText =
+                                          "⏳ Transaction settled but unverified - Blockchain confirmation pending";
+                                      } else if (
+                                        transaction.creation_transaction_hash
+                                      ) {
+                                        hashToUse =
+                                          transaction.creation_transaction_hash;
+                                        tooltipText =
+                                          "View creation transaction on blockchain explorer";
+                                      } else {
+                                        isDisabled = true;
+                                        tooltipText =
+                                          "⚠️ No blockchain transaction hash available";
+                                      }
+
+                                      // Debug logging
+                                      console.log(
+                                        "Transaction external link:",
+                                        {
+                                          id: transaction.id,
+                                          status: transaction.status,
+                                          hashToUse,
+                                          isDisabled,
+                                          settlement_hash:
+                                            transaction.settlement_transaction_hash,
+                                          creation_hash:
+                                            transaction.creation_transaction_hash,
+                                          refund_hash:
+                                            transaction.refund_transaction_hash,
+                                        }
+                                      );
+
+                                      if (isDisabled || !hashToUse) {
+                                        return (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled
+                                            title={tooltipText}
+                                          >
+                                            <ExternalLink className="h-4 w-4 opacity-50" />
+                                          </Button>
+                                        );
+                                      }
+
+                                      const explorerLinks =
+                                        generateExplorerLinks({
+                                          tokenInput: transaction.token,
+                                          txOrAddress: hashToUse,
+                                          env: isSandbox ? "sandbox" : "live",
+                                        });
+
+                                      return explorerLinks.txUrl ? (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() =>
+                                            window.open(
+                                              explorerLinks.txUrl!,
+                                              "_blank"
+                                            )
+                                          }
+                                          title={tooltipText}
+                                        >
+                                          <ExternalLink className="h-4 w-4" />
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          disabled
+                                          title={`🔍 No blockchain explorer available for ${transaction.token}`}
+                                        >
+                                          <ExternalLink className="h-4 w-4 opacity-50" />
+                                        </Button>
+                                      );
+                                    })()}
+
                                     {transaction.transaction_hash && (
                                       <Button
                                         variant="ghost"
@@ -1212,23 +1418,20 @@ export default function TransactionsPage() {
                     {/* Page Size Selector */}
                     <div className="flex items-center gap-2">
                       <Label htmlFor="pageSize">Show:</Label>
-                      <Select
+                      <select
                         value={limit.toString()}
-                        onValueChange={(value) =>
-                          handlePageSizeChange(parseInt(value))
+                        onChange={(e) =>
+                          handlePageSizeChange(parseInt(e.target.value))
                         }
+                        className="flex h-10 w-20 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        id="pageSize"
                       >
-                        <SelectTrigger className="w-20" id="pageSize">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="25">25</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                          <SelectItem value="100">100</SelectItem>
-                          <SelectItem value="200">200</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                      </select>
                       <span className="text-sm text-muted-foreground">
                         per page
                       </span>

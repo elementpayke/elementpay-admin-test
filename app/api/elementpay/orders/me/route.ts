@@ -26,12 +26,12 @@ export async function GET(req: NextRequest) {
     const params = new URLSearchParams()
 
     // Forward query parameters to Element Pay API
-    const statusFilter = searchParams.get('status_filter')
+    const statusFilter = searchParams.get('status')
     const orderType = searchParams.get('order_type')
     const limit = searchParams.get('limit')
     const offset = searchParams.get('offset')
 
-    if (statusFilter) params.set('status_filter', statusFilter)
+    if (statusFilter) params.set('status', statusFilter)
     if (orderType) params.set('order_type', orderType)
     if (limit) params.set('limit', limit)
     if (offset) params.set('offset', offset)
