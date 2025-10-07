@@ -3,11 +3,13 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { useCallback } from "react"
 import { getCurrentEnvironment } from "@/lib/api-config"
+import { useWallet } from "@/components/providers/wallet-provider"
 
 export function useAuth() {
   const { data: session, status, update } = useSession()
   const router = useRouter()
   const { toast } = useToast()
+  const { disconnectWallet, isConnected } = useWallet()
 
   const isLoading = status === "loading"
   const isAuthenticated = status === "authenticated" && !!session
@@ -17,6 +19,11 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     try {
+      // Disconnect wallet if connected
+      if (isConnected) {
+        disconnectWallet()
+      }
+      
       await signOut({
         redirect: false,
         callbackUrl: "/"
@@ -33,7 +40,7 @@ export function useAuth() {
         description: "There was an error logging you out. Please try again.",
       })
     }
-  }, [toast, router])
+  }, [toast, router, disconnectWallet, isConnected])
 
   const refreshSession = useCallback(async () => {
     try {

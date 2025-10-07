@@ -2,34 +2,132 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Wallet, CheckCircle, AlertTriangle, Copy } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Wallet,
+  CheckCircle,
+  AlertTriangle,
+  Copy,
+  ChevronDown,
+  RefreshCw,
+} from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import Image from "next/image";
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useBalance,
+  useChainId,
+} from "wagmi";
+import { metaMask, coinbaseWallet } from "wagmi/connectors";
+import { formatEther, formatUnits } from "viem";
+import { useWallet } from "@/components/providers/wallet-provider";
 
 interface WalletConnectionProps {
   onConnectionChange?: (isConnected: boolean, address?: string) => void;
   className?: string;
 }
 
+// Token configurations for balance reading
+const SUPPORTED_TOKENS = {
+  // Base Mainnet tokens
+  8453: {
+    ETH: { symbol: "ETH", decimals: 18, name: "Ethereum" },
+    USDC: {
+      symbol: "USDC",
+      decimals: 6,
+      name: "USD Coin",
+      address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    },
+    USDT: {
+      symbol: "USDT",
+      decimals: 6,
+      name: "Tether USD",
+      address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+    },
+  },
+  // Ethereum Mainnet tokens
+  1: {
+    ETH: { symbol: "ETH", decimals: 18, name: "Ethereum" },
+    USDC: {
+      symbol: "USDC",
+      decimals: 6,
+      name: "USD Coin",
+      address: "0xA0b86a33E6441b8c4C8C0E4B8c4C8C0E4B8c4C8C0",
+    },
+    USDT: {
+      symbol: "USDT",
+      decimals: 6,
+      name: "Tether USD",
+      address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    },
+  },
+  // Sepolia Testnet tokens
+  11155111: {
+    ETH: { symbol: "ETH", decimals: 18, name: "Ethereum" },
+    USDC: {
+      symbol: "USDC",
+      decimals: 6,
+      name: "USD Coin",
+      address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    },
+  },
+};
+
 export default function WalletConnection({
   onConnectionChange,
   className,
 }: WalletConnectionProps) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string>("");
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string>("");
+  const { address, isConnected, connector } = useAccount();
+  const { connect, connectors, isPending, error: connectError } = useConnect();
+  const { disconnect } = useDisconnect();
+  const chainId = useChainId();
   const { toast } = useToast();
 
-  // Check if MetaMask is installed
-  const isMetaMaskInstalled = () => {
-    return (
-      typeof window !== "undefined" && typeof window.ethereum !== "undefined"
-    );
-  };
+  // Use global wallet context
+  const {
+    connectWallet,
+    disconnectWallet,
+    isConnecting: globalIsConnecting,
+    isDisconnecting: globalIsDisconnecting,
+    error: globalError,
+    clearError,
+  } = useWallet();
+
+  // Get available connectors
+  const metaMaskConnector = connectors.find((c) => c.id === "metaMaskSDK");
+  const coinbaseConnector = connectors.find((c) => c.id === "coinbaseWalletSDK");
+
+  console.log("Available connectors", connectors);
+
+  // Get native ETH balance
+  const { data: ethBalance, isLoading: isLoadingEthBalance } = useBalance({
+    address: address,
+  });
+
+  // Get USDC balance
+  const { data: usdcBalance, isLoading: isLoadingUsdcBalance } = useBalance({
+    address: address,
+    token: SUPPORTED_TOKENS[chainId as keyof typeof SUPPORTED_TOKENS]?.USDC
+      ?.address as `0x${string}`,
+  });
+
+  // Get USDT balance
+  const { data: usdtBalance, isLoading: isLoadingUsdtBalance } = useBalance({
+    address: address,
+    token: (SUPPORTED_TOKENS[chainId as keyof typeof SUPPORTED_TOKENS] as any)
+      ?.USDT?.address as `0x${string}`,
+  });
 
   // Format wallet address for display
   const formatAddress = (address: string) => {
@@ -39,10 +137,10 @@ export default function WalletConnection({
 
   // Copy address to clipboard
   const copyAddress = async () => {
-    if (!walletAddress) return;
+    if (!address) return;
 
     try {
-      await navigator.clipboard.writeText(walletAddress);
+      await navigator.clipboard.writeText(address);
       toast({
         title: "Address Copied",
         description: "Wallet address copied to clipboard",
@@ -52,109 +150,59 @@ export default function WalletConnection({
     }
   };
 
-  // Connect to MetaMask
-  const connectWallet = async () => {
-    if (!isMetaMaskInstalled()) {
-      setError(
-        "MetaMask is not installed. Please install MetaMask to continue."
-      );
-      return;
-    }
-
-    setIsConnecting(true);
-    setError("");
-
+  // Handle wallet connection
+  const handleConnect = async (connector: any) => {
     try {
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (accounts.length > 0) {
-        const address = accounts[0];
-        setWalletAddress(address);
-        setIsConnected(true);
-        onConnectionChange?.(true, address);
-
-        toast({
-          title: "Wallet Connected",
-          description: `Connected to ${formatAddress(address)}`,
-        });
-      }
-    } catch (error: any) {
-      console.error("Failed to connect wallet:", error);
-      setError(error.message || "Failed to connect wallet");
-    } finally {
-      setIsConnecting(false);
+      await connectWallet(connector.id);
+    } catch (error) {
+      console.error("Connection failed:", error);
     }
   };
 
-  // Disconnect wallet
-  const disconnectWallet = () => {
-    setIsConnected(false);
-    setWalletAddress("");
-    setError("");
-    onConnectionChange?.(false);
-
-    toast({
-      title: "Wallet Disconnected",
-      description: "Wallet has been disconnected",
-    });
+  // Handle wallet disconnection
+  const handleDisconnect = () => {
+    disconnectWallet();
   };
 
-  // Check if already connected on mount
+  // Notify parent component of connection changes
   useEffect(() => {
-    const checkConnection = async () => {
-      if (!isMetaMaskInstalled()) return;
+    onConnectionChange?.(isConnected, address);
+  }, [isConnected, address, onConnectionChange]);
 
-      try {
-        const accounts = await window.ethereum.request({
-          method: "eth_accounts",
-        });
+  // Format balance for display
+  const formatBalance = (
+    balance: bigint | undefined,
+    decimals: number,
+    symbol: string
+  ) => {
+    if (!balance) return "0.00";
+    const formatted = formatUnits(balance, decimals);
+    const num = parseFloat(formatted);
+    return `${num.toFixed(4)} ${symbol}`;
+  };
 
-        if (accounts.length > 0) {
-          const address = accounts[0];
-          setWalletAddress(address);
-          setIsConnected(true);
-          onConnectionChange?.(true, address);
-        }
-      } catch (error) {
-        console.error("Failed to check wallet connection:", error);
-      }
-    };
+  // Get current chain name
+  const getChainName = (chainId: number) => {
+    switch (chainId) {
+      case 1:
+        return "Ethereum Mainnet";
+      case 8453:
+        return "Base Mainnet";
+      case 11155111:
+        return "Sepolia Testnet";
+      default:
+        return `Chain ${chainId}`;
+    }
+  };
 
-    checkConnection();
-  }, [onConnectionChange]);
+  // Check if any wallet is available
+  const hasAvailableWallets = metaMaskConnector || coinbaseConnector;
 
-  // Listen for account changes
-  useEffect(() => {
-    if (!isMetaMaskInstalled()) return;
-
-    const handleAccountsChanged = (accounts: string[]) => {
-      if (accounts.length === 0) {
-        disconnectWallet();
-      } else if (accounts[0] !== walletAddress) {
-        setWalletAddress(accounts[0]);
-        onConnectionChange?.(true, accounts[0]);
-      }
-    };
-
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-
-    return () => {
-      if (window.ethereum.removeListener) {
-        window.ethereum.removeListener(
-          "accountsChanged",
-          handleAccountsChanged
-        );
-      }
-    };
-  }, [walletAddress, onConnectionChange]);
-
-  if (!isMetaMaskInstalled()) {
+  if (!hasAvailableWallets) {
     return (
-      <Card className={className + " !w-full "}>
-        <CardContent className="p-6 !w-full ">
-          <div className="space-y-4 flex flex-col !w-full">
+      <Card className={className}>
+        <CardContent className="p-6">
+          <div className="space-y-4">
             {/* Header Section */}
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -163,7 +211,7 @@ export default function WalletConnection({
               <div className="flex-1">
                 <h3 className="text-lg font-semibold">Connect Your Wallet</h3>
                 <p className="text-sm text-muted-foreground">
-                  To get started with crypto disbursements, please connect a
+                  To get started with crypto disbursements, please install a
                   supported wallet
                 </p>
               </div>
@@ -172,8 +220,8 @@ export default function WalletConnection({
             <div className="flex flex-col gap-2">
               <div>
                 <p className="text-sm font-medium mb-3">Supported Wallets:</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* MetaMask - Primary option */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* MetaMask */}
                   <div className="flex flex-col items-center p-4 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors text-center">
                     <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center mb-3">
                       <span className="text-white font-bold text-lg">M</span>
@@ -195,24 +243,9 @@ export default function WalletConnection({
                     </Button>
                   </div>
 
-                  {/* Future wallet options - Coming soon */}
-                  <div className="flex flex-col items-center p-4 border rounded-lg bg-muted/20 opacity-60 text-center">
+                  {/* Coinbase Wallet */}
+                  <div className="flex flex-col items-center p-4 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors text-center">
                     <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mb-3">
-                      <span className="text-white font-bold text-lg">W</span>
-                    </div>
-                    <div className="space-y-2 flex-1">
-                      <p className="font-medium text-sm">WalletConnect</p>
-                      <p className="text-xs text-muted-foreground">
-                        Connect multiple wallet types
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs mt-3">
-                      Coming Soon
-                    </Badge>
-                  </div>
-
-                  <div className="flex flex-col items-center p-4 border rounded-lg bg-muted/20 opacity-60 text-center">
-                    <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mb-3">
                       <span className="text-white font-bold text-lg">C</span>
                     </div>
                     <div className="space-y-2 flex-1">
@@ -221,9 +254,15 @@ export default function WalletConnection({
                         Coinbase's self-custody wallet
                       </p>
                     </div>
-                    <Badge variant="secondary" className="text-xs mt-3">
-                      Coming Soon
-                    </Badge>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        window.open("https://www.coinbase.com/wallet", "_blank")
+                      }
+                      className="bg-blue-500 hover:bg-blue-600 w-full mt-3"
+                    >
+                      Install
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -233,8 +272,8 @@ export default function WalletConnection({
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription className="text-sm">
-                    After installing MetaMask, please refresh this page to
-                    connect your wallet.
+                    After installing a wallet, please refresh this page to
+                    connect.
                   </AlertDescription>
                 </Alert>
 
@@ -250,7 +289,6 @@ export default function WalletConnection({
                 </div>
               </div>
             </div>
-            {/* Wallets Section */}
           </div>
         </CardContent>
       </Card>
@@ -259,71 +297,107 @@ export default function WalletConnection({
 
   return (
     <Card className={className}>
-      <CardContent className="p-4">
-        {error && (
-          <Alert className="mb-4">
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <Wallet className="h-5 w-5" />
+          <span>Wallet Connection</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {(connectError || globalError) && (
+          <Alert>
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {connectError?.message || globalError}
+            </AlertDescription>
           </Alert>
         )}
 
         {!isConnected ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <Image src="/MetaMask.svg" alt="MetaMask" width={20} height={20} />
-              </div>
-              <div>
-                <h4 className="font-medium">Connect Your Wallet</h4>
-                <p className="text-sm text-muted-foreground">
-                  Connect MetaMask to start making crypto disbursements
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-end space-y-2">
-              <Button
-                onClick={connectWallet}
-                disabled={isConnecting}
-                className="bg-orange-500 hover:bg-orange-600"
-                size="lg"
-              >
-                {isConnecting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <div className="w-5 h-5 rounded mr-2 flex items-center justify-center">
-                      <Image src="/MetaMask.svg" alt="MetaMask" width={20} height={20} />
-                    </div>
-                    Connect MetaMask
-                  </>
-                )}
-              </Button>
-              <p className="text-xs text-muted-foreground text-right">
-                By connecting, you agree to our Terms of Service
+          <div className="space-y-4">
+            <div className="text-center">
+              <h4 className="font-medium mb-2">Connect Your Wallet</h4>
+              <p className="text-sm text-muted-foreground">
+                Choose a wallet to connect and start making crypto disbursements
               </p>
             </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {metaMaskConnector && (
+                <Button
+                  onClick={() => handleConnect(metaMaskConnector)}
+                  disabled={isPending || globalIsConnecting}
+                  className="bg-orange-500 hover:bg-orange-600 justify-start"
+                  size="lg"
+                >
+                  {isPending || globalIsConnecting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-5 h-5 rounded mr-3 flex items-center justify-center">
+                        <Image
+                          src="/MetaMask.svg"
+                          alt="MetaMask"
+                          width={20}
+                          height={20}
+                        />
+                      </div>
+                      Connect MetaMask
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {coinbaseConnector && (
+                <Button
+                  onClick={() => handleConnect(coinbaseConnector)}
+                  disabled={isPending || globalIsConnecting}
+                  className="bg-blue-500 hover:bg-blue-600 justify-start"
+                  size="lg"
+                >
+                  {isPending || globalIsConnecting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-5 h-5 rounded mr-3 flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">C</span>
+                      </div>
+                      Connect Coinbase Wallet
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center">
+              By connecting, you agree to our Terms of Service
+            </p>
           </div>
         ) : (
-          <div className="flex flex-col space-y-3">
+          <div className="space-y-4">
+            {/* Connection Status */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5 text-green-500" />
                 <span className="text-sm font-medium">Wallet Connected</span>
               </div>
               <Badge variant="secondary" className="bg-green-50 text-green-700">
-                Connected
+                {connector?.name || "Connected"}
               </Badge>
             </div>
 
+            {/* Wallet Address */}
             <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
               <div className="flex flex-col">
                 <span className="text-xs text-muted-foreground">Address</span>
                 <span className="font-mono text-sm">
-                  {formatAddress(walletAddress)}
+                  {formatAddress(address!)}
                 </span>
               </div>
               <Button
@@ -336,23 +410,99 @@ export default function WalletConnection({
               </Button>
             </div>
 
+            {/* Chain Information */}
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Network</span>
+                <Badge variant="outline">{getChainName(chainId)}</Badge>
+              </div>
+            </div>
+
+            {/* Token Balances */}
+            <div className="space-y-2">
+              <h5 className="text-sm font-medium">Token Balances</h5>
+              <div className="space-y-2">
+                {/* ETH Balance */}
+                <div className="flex items-center justify-between bg-muted/30 rounded-lg p-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">Ξ</span>
+                    </div>
+                    <span className="text-sm font-medium">ETH</span>
+                  </div>
+                  <span className="text-sm font-mono">
+                    {isLoadingEthBalance ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      formatBalance(ethBalance?.value, 18, "ETH")
+                    )}
+                  </span>
+                </div>
+
+                {/* USDC Balance */}
+                {SUPPORTED_TOKENS[chainId as keyof typeof SUPPORTED_TOKENS]
+                  ?.USDC && (
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg p-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">$</span>
+                      </div>
+                      <span className="text-sm font-medium">USDC</span>
+                    </div>
+                    <span className="text-sm font-mono">
+                      {isLoadingUsdcBalance ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        formatBalance(usdcBalance?.value, 6, "USDC")
+                      )}
+                    </span>
+                  </div>
+                )}
+
+                {/* USDT Balance */}
+                {(
+                  SUPPORTED_TOKENS[
+                    chainId as keyof typeof SUPPORTED_TOKENS
+                  ] as any
+                )?.USDT && (
+                  <div className="flex items-center justify-between bg-muted/30 rounded-lg p-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">T</span>
+                      </div>
+                      <span className="text-sm font-medium">USDT</span>
+                    </div>
+                    <span className="text-sm font-mono">
+                      {isLoadingUsdtBalance ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        formatBalance(usdtBalance?.value, 6, "USDT")
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Disconnect Button */}
             <Button
               variant="outline"
-              onClick={disconnectWallet}
+              onClick={handleDisconnect}
+              disabled={globalIsDisconnecting}
               className="w-full"
             >
-              Disconnect
+              {globalIsDisconnecting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2" />
+                  Disconnecting...
+                </>
+              ) : (
+                "Disconnect Wallet"
+              )}
             </Button>
           </div>
         )}
       </CardContent>
     </Card>
   );
-}
-
-// Extend Window interface for TypeScript
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
 }

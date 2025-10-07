@@ -1,28 +1,31 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/sonner"
-import { AuthProvider } from "@/components/providers/auth-provider"
-import { QueryProvider } from "@/components/providers/query-provider"
-import { EnvironmentProvider } from "@/components/providers/environment-provider"
+import type React from "react";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from "@/components/providers/auth-provider";
+import { QueryProvider } from "@/components/providers/query-provider";
+import { EnvironmentProvider } from "@/components/providers/environment-provider";
+import { WagmiProviderWrapper } from "@/components/providers/wagmi-provider";
+import { WalletProvider } from "@/components/providers/wallet-provider";
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Element Pay Console",
-  description: "Element Pay Console with authentication and API key management.",
-  generator: 'v0.dev',
+  description:
+    "Element Pay Console with authentication and API key management.",
+  generator: "v0.dev",
   icons: {
-    icon: '/favicon.ico',
+    icon: "/favicon.ico",
   },
-}
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -33,16 +36,20 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            <QueryProvider>
-              <EnvironmentProvider>
-                {children}
-                <Toaster />
-              </EnvironmentProvider>
-            </QueryProvider>
-          </AuthProvider>
+          <WagmiProviderWrapper>
+            <WalletProvider>
+              <AuthProvider>
+                <QueryProvider>
+                  <EnvironmentProvider>
+                    {children}
+                    <Toaster />
+                  </EnvironmentProvider>
+                </QueryProvider>
+              </AuthProvider>
+            </WalletProvider>
+          </WagmiProviderWrapper>
         </ThemeProvider>
       </body>
     </html>
-  )
+  );
 }

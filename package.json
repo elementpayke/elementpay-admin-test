@@ -60,6 +60,7 @@
     "nodemailer": "latest",
     "ogl": "^1.0.11",
     "papaparse": "^5.5.3",
+    "pino-pretty": "^13.1.1",
     "react": "^18",
     "react-day-picker": "latest",
     "react-dom": "^18",
