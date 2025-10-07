@@ -59,6 +59,7 @@
     "next-themes": "latest",
     "nodemailer": "latest",
     "ogl": "^1.0.11",
+    "papaparse": "^5.5.3",
     "react": "^18",
     "react-day-picker": "latest",
     "react-dom": "^18",
@@ -72,11 +73,13 @@
     "vaul": "latest",
     "viem": "^2.37.6",
     "wagmi": "^2.16.9",
+    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
+    "@types/papaparse": "^5.3.16",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.21",
