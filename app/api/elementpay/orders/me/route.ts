@@ -26,12 +26,12 @@ export async function GET(req: NextRequest) {
     const params = new URLSearchParams()
 
     // Forward query parameters to Element Pay API
-    const statusFilter = searchParams.get('status_filter')
+    const statusFilter = searchParams.get('status')
     const orderType = searchParams.get('order_type')
     const limit = searchParams.get('limit')
     const offset = searchParams.get('offset')
 
-    if (statusFilter) params.set('status_filter', statusFilter)
+    if (statusFilter) params.set('status', statusFilter)
     if (orderType) params.set('order_type', orderType)
     if (limit) params.set('limit', limit)
     if (offset) params.set('offset', offset)
@@ -40,7 +40,6 @@ export async function GET(req: NextRequest) {
     const elementPayUrl = `${elementPayBaseUrl}/users/me/orders${queryString ? `?${queryString}` : ''}`
 
     console.log('Element Pay Orders URL:', elementPayUrl)
-
     const response = await fetch(elementPayUrl, {
       method: 'GET',
       headers: {
@@ -80,14 +79,20 @@ export async function GET(req: NextRequest) {
     if (result.status === "success" && result.data) {
       // Check if data has orders array (paginated response)
       if (result.data.orders && Array.isArray(result.data.orders)) {
-        console.log('Returning orders:', result.data.orders.length, 'orders found')
+        console.log('Returning paginated orders:', result.data.orders.length, 'orders found')
         return NextResponse.json({
           status: "success",
           message: result.message || "Orders fetched successfully",
-          data: result.data.orders  // Extract orders array from nested structure
+          data: {
+            orders: result.data.orders,
+            total: result.data.total,
+            limit: result.data.limit,
+            offset: result.data.offset,
+            has_more: result.data.has_more
+          }
         })
       }
-      
+
       // Check if data is directly an array (non-paginated response)
       if (Array.isArray(result.data)) {
         console.log('Returning orders:', result.data.length, 'orders found')

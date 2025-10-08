@@ -86,7 +86,8 @@ export type ApiOrder = {
   phone_number: string
   creation_transaction_hash?: string
   settlement_transaction_hash?: string
-  order_type: "OnRamp" | "OffRamp"
+  refund_transaction_hash?: string
+  order_type: 0 | 1
   wallet_address: string
   created_at: string
   updated_at?: string
@@ -103,6 +104,9 @@ export type Order = {
   amount_fiat: number
   exchange_rate?: number
   transaction_hash?: string
+  creation_transaction_hash?: string
+  settlement_transaction_hash?: string
+  refund_transaction_hash?: string
   fiat_payload: FiatPayload
   created_at: string
   updated_at: string

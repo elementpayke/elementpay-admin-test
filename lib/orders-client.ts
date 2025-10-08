@@ -6,7 +6,7 @@ interface OrdersClientConfig {
 }
 
 interface OrdersFilter {
-  status_filter?: OrderStatus | null
+  status?: OrderStatus | null
   order_type?: "onramp" | "offramp" | null
   limit?: number
   offset?: number
@@ -83,7 +83,7 @@ export const ordersClient = (config: OrdersClientConfig = {}) => {
       params.set('sandbox', isSandbox.toString())
 
       // Add filter parameters
-      if (filters.status_filter) params.set('status_filter', filters.status_filter)
+      if (filters.status) params.set('status', filters.status)
       if (filters.order_type) params.set('order_type', filters.order_type)
       if (filters.limit) params.set('limit', filters.limit.toString())
       if (filters.offset) params.set('offset', filters.offset.toString())
@@ -107,29 +107,8 @@ export const ordersClient = (config: OrdersClientConfig = {}) => {
 
       console.log('Orders client received response:', response)
 
-      // Handle API response format
-      if (response.data) {
-        // Check if data is an array (flattened response from our API)
-        if (Array.isArray(response.data)) {
-          console.log('Returning orders:', response.data.length, 'orders found')
-          return response.data
-        }
-        
-        // Check if data has orders property (paginated response)
-        if (typeof response.data === 'object' && 'orders' in response.data && Array.isArray(response.data.orders)) {
-          console.log('Returning orders from paginated response:', response.data.orders.length, 'orders found')
-          return response.data.orders
-        }
-      }
-
-      // Fallback for different response formats
-      if (Array.isArray(response)) {
-        console.log('Response is direct array, returning as orders')
-        return response as ApiOrder[]
-      }
-
-      console.log('No orders found in response, returning empty array')
-      return []
+      // Return the full response object so the component can access both orders and pagination metadata
+      return response
     }
   }
 }

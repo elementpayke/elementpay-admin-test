@@ -1,8 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/components/ui/use-toast'
+import { useEnvironment } from '@/hooks/use-environment'
+import { getCurrentEnvironment } from '@/lib/api-config'
+import { useEffect, useRef } from 'react'
 
 export interface DashboardSummary {
   total_transactions: number
@@ -35,77 +38,91 @@ interface UseDashboardOptions {
 export function useDashboard(options: UseDashboardOptions = {}) {
   const { makeAuthenticatedRequest } = useAuth()
   const { toast } = useToast()
+  const { environment: apiConfigEnvironment } = useEnvironment()
+  const previousEnvironmentRef = useRef<string>(apiConfigEnvironment)
 
   const {
     autoRefresh = true,
     refreshInterval = 30
   } = options
 
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchDashboard = useCallback(async () => {
-    if (!makeAuthenticatedRequest) {
-      console.error('makeAuthenticatedRequest not available')
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-    try {
-      const response = await makeAuthenticatedRequest(
-        '/api/elementpay/me/dashboard',
-        { method: 'GET' }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data')
+  const dashboardQuery = useQuery({
+    queryKey: ['dashboard', apiConfigEnvironment],
+    enabled: !!makeAuthenticatedRequest,
+    staleTime: autoRefresh ? refreshInterval * 1000 : 0, // Cache for refresh interval duration
+    queryFn: async () => {
+      if (!makeAuthenticatedRequest) {
+        throw new Error('Authentication not available')
       }
 
-      const result = await response.json()
+      try {
+        const response = await makeAuthenticatedRequest(
+          '/api/elementpay/me/dashboard',
+          {
+            method: 'GET',
+            headers: {
+              'x-elementpay-environment': getCurrentEnvironment()
+            }
+          }
+        )
 
-      if (result.status === "success" && result.data) {
-        setDashboardData(result.data)
-      } else {
-        throw new Error(result.message || 'Failed to fetch dashboard data')
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: Failed to fetch dashboard data`)
+        }
+
+        const result = await response.json()
+
+        if (result.status === "success" && result.data) {
+          return result.data
+        } else {
+          throw new Error(result.message || 'Failed to fetch dashboard data')
+        }
+      } catch (error: any) {
+        const errorMessage = error.message || 'Failed to fetch dashboard data'
+        console.error('Dashboard fetch error:', error)
+
+        // Show error toast
+        toast({
+          title: "Dashboard Error",
+          description: errorMessage,
+          type: "destructive",
+        })
+
+        // Return default data structure with zeros
+        return {
+          summary: {
+            total_transactions: 0,
+            pending_orders: 0,
+            settled_orders: 0,
+            total_currencies: 0,
+            total_tokens: 0
+          },
+          fiat_currencies: [],
+          crypto_tokens: [],
+          fiat_breakdown: {},
+          crypto_breakdown: {}
+        }
       }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Failed to fetch dashboard data'
-      setError(errorMessage)
-      console.error('Dashboard fetch error:', error)
-      toast({
-        title: "Dashboard Error",
-        description: errorMessage,
- 
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [makeAuthenticatedRequest, toast])
+    },
+    // Refetch on environment change
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
 
-  // Fetch dashboard data on mount
+  // Refetch when environment changes
   useEffect(() => {
-    if (makeAuthenticatedRequest) {
-      fetchDashboard()
+    if (previousEnvironmentRef.current !== apiConfigEnvironment && !!makeAuthenticatedRequest) {
+      console.log('Environment changed from', previousEnvironmentRef.current, 'to', apiConfigEnvironment, '- refetching dashboard data')
+      dashboardQuery.refetch()
+      previousEnvironmentRef.current = apiConfigEnvironment
     }
-  }, [fetchDashboard, makeAuthenticatedRequest])
-
-  // Auto refresh dashboard data
-  useEffect(() => {
-    if (!autoRefresh || !makeAuthenticatedRequest) return
-
-    const interval = setInterval(() => {
-      fetchDashboard()
-    }, refreshInterval * 1000)
-
-    return () => clearInterval(interval)
-  }, [fetchDashboard, autoRefresh, refreshInterval, makeAuthenticatedRequest])
+  }, [apiConfigEnvironment, makeAuthenticatedRequest])
 
   return {
-    dashboardData,
-    isLoading,
-    error,
-    refetch: fetchDashboard,
+    dashboardData: dashboardQuery.data,
+    isLoading: dashboardQuery.isLoading,
+    error: dashboardQuery.error?.message || null,
+    refetch: dashboardQuery.refetch,
   }
 }

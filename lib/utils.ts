@@ -2,6 +2,115 @@ import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { environmentManager, apiClient, getCurrentEnvironment } from '@/lib/api-config'
 
+// Explorer link generation utilities
+const EXPLORER_MAP = {
+  // Base mainnet
+  base: {
+    env: {
+      live: "https://basescan.org",          // Base mainnet explorer
+      sandbox: "https://sepolia.basescan.org" // Base Sepolia test explorer
+    },
+    // default path patterns (optional per-chain overrides)
+    paths: { tx: "/tx/", address: "/address/", token: "/token/" }
+  },
+
+  // Lisk (chain id 1135)
+  lisk: {
+    env: { live: "https://blockscout.lisk.com" },
+    paths: { tx: "/tx/", address: "/address/", token: "/tokens/" } // Blockscout token pages vary
+  },
+
+  // Scroll (chain id 534352)
+  scroll: {
+    env: { live: "https://scrollscan.com" },
+    paths: { tx: "/tx/", address: "/address/", token: "/token/" }
+  },
+
+  // Arbitrum One
+  arbitrum: {
+    env: { live: "https://arbiscan.io" },
+    paths: { tx: "/tx/", address: "/address/", token: "/token/" }
+  },
+
+  // fallback - you can add more chain mappings here
+};
+
+/**
+ * Normalize chain name into a key used in EXPLORER_MAP
+ */
+function normalizeChainKey(chainName = "") {
+  return String(chainName).trim().toLowerCase().replace(/\s+/g, "");
+}
+
+/**
+ * Build links from mapping
+ */
+// Simple chain-to-explorer URL mapping
+const CHAIN_EXPLORER_MAP: { [key: string]: string } = {
+  "BASE": "https://basescan.org",
+  "LISK": "https://blockscout.lisk.com",
+  "SCROLL": "https://scrollscan.com",
+  "ETHEREUM": "https://etherscan.io",
+  "ARBITRUM": "https://arbiscan.io",
+};
+
+const TESTNET_EXPLORER_MAP: { [key: string]: string } = {
+  "BASE": "https://sepolia.basescan.org",
+  "LISK": "https://sepolia.blockscout.lisk.com",
+  "SCROLL": "https://sepolia.scrollscan.com",
+  "ETHEREUM": "https://sepolia.etherscan.io",
+  "ARBITRUM": "https://sepolia.arbiscan.io",
+};
+
+/**
+ * generateExplorerLinks - Simplified version
+ * 
+ * @param token - Token string like "BASE_USDC" or "LISK_USDT"
+ * @param txHash - Transaction hash (assumes all hashes are tx hashes)
+ * @returns Object with explorer base URL and transaction URL
+ */
+export function generateExplorerLinks(token: string, txHash: string, env: string) {
+  if (!token || !txHash) {
+    return {
+      explorerBase: null,
+      txUrl: null,
+      error: "Token and txHash are required"
+    };
+  }
+
+  // Split token by "_" to get chain name
+  const parts = token.split('_');
+  if (parts.length < 2) {
+    return {
+      explorerBase: null,
+      txUrl: null,
+      error: "Token format should be 'CHAIN_SYMBOL' (e.g., 'BASE_USDC')"
+    };
+  }
+
+  const chainName = parts[0].toUpperCase();
+  const explorerBase = env === "sandbox" ? TESTNET_EXPLORER_MAP[chainName] : CHAIN_EXPLORER_MAP[chainName];
+
+  if (!explorerBase) {
+    return {
+      explorerBase: null,
+      txUrl: null,
+      error: `No explorer mapping found for chain: ${chainName}. Add it to CHAIN_EXPLORER_MAP.`
+    };
+  }
+
+  // Assume all hashes are transaction hashes
+  const txUrl = `${explorerBase}/tx/0x${txHash.toLowerCase()}`;
+  console.log('txUrl', txUrl);
+
+  return {
+    explorerBase,
+    txUrl,
+    chainName,
+    error: null
+  };
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
