@@ -1,13 +1,13 @@
-"use client"
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { useAuth } from '@/hooks/use-auth'
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useAuth } from "@/hooks/use-auth";
 import {
   LayoutDashboard,
   CreditCard,
@@ -19,8 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LucideFastForward,
-} from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,47 +28,47 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/badge'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
-import EnvironmentBadgeDropdown from '@/components/dashboard/environment-badge-dropdown'
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import EnvironmentBadgeDropdown from "@/components/dashboard/environment-badge-dropdown";
 
 const navigation = [
   {
-    name: 'Dashboard',
-    href: '/dashboard',
+    name: "Dashboard",
+    href: "/dashboard",
     icon: LayoutDashboard,
-    description: 'Overview and quick stats',
+    description: "Overview and quick stats",
   },
   {
-    name: 'API Keys',
-    href: '/dashboard/api-keys',
+    name: "API Keys",
+    href: "/dashboard/api-keys",
     icon: CreditCard,
-    description: 'Manage your API keys',
+    description: "Manage your API keys",
   },
   {
-    name: 'Transactions',
-    href: '/dashboard/transactions',
+    name: "Transactions",
+    href: "/dashboard/transactions",
     icon: ArrowLeftRight,
-    description: 'Order history and creation',
+    description: "Order history and creation",
   },
-  {
-    name: "Make Payment",
-    href: "/dashboard/disbursement",
-    icon: CreditCard,
-    description: 'Make payment to your customers',
-  }
-]
+  // {
+  //   name: "Make Payment",
+  //   href: "/dashboard/disbursement",
+  //   icon: CreditCard,
+  //   description: 'Make payment to your customers',
+  // }
+];
 
 interface DashboardLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   const NavContent = () => (
     <div className="flex h-full flex-col">
@@ -109,26 +109,28 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-2 py-4">
         {navigation.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = pathname === item.href;
           return (
             <Link
               key={item.name}
               href={item.href}
               className={cn(
-                'group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-                sidebarCollapsed ? 'justify-center' : '',
+                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                sidebarCollapsed ? "justify-center" : "",
                 isActive
-                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 shadow-sm'
-                  : 'text-muted-foreground hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100'
+                  ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 shadow-sm"
+                  : "text-muted-foreground hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
               )}
               onClick={() => setSidebarOpen(false)}
               title={sidebarCollapsed ? item.name : undefined}
             >
               <item.icon
                 className={cn(
-                  'flex-shrink-0 transition-colors',
-                  sidebarCollapsed ? 'h-5 w-5' : 'mr-3 h-5 w-5',
-                  isActive ? 'text-white dark:text-gray-900' : 'text-muted-foreground group-hover:text-gray-900 dark:group-hover:text-gray-100'
+                  "flex-shrink-0 transition-colors",
+                  sidebarCollapsed ? "h-5 w-5" : "mr-3 h-5 w-5",
+                  isActive
+                    ? "text-white dark:text-gray-900"
+                    : "text-muted-foreground group-hover:text-gray-900 dark:group-hover:text-gray-100"
                 )}
               />
               {!sidebarCollapsed && (
@@ -138,24 +140,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
               )}
             </Link>
-          )
+          );
         })}
       </nav>
-
     </div>
-  )
+  );
 
   return (
     <div className="flex h-screen bg-background">
       {/* Desktop Sidebar */}
-      <div className={cn(
-        "hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 transition-all duration-300 z-50",
-        sidebarCollapsed ? "lg:w-16" : "lg:w-64"
-      )}>
-        <div className={cn(
-          "flex flex-col flex-grow border-r bg-card transition-all duration-300 shadow-lg",
-          sidebarCollapsed ? "w-16" : "w-64"
-        )}>
+      <div
+        className={cn(
+          "hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 transition-all duration-300 z-50",
+          sidebarCollapsed ? "lg:w-16" : "lg:w-64"
+        )}
+      >
+        <div
+          className={cn(
+            "flex flex-col flex-grow border-r bg-card transition-all duration-300 shadow-lg",
+            sidebarCollapsed ? "w-16" : "w-64"
+          )}
+        >
           <NavContent />
         </div>
       </div>
@@ -168,10 +173,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </Sheet>
 
       {/* Main Content */}
-      <div className={cn(
-        "flex flex-1 flex-col transition-all duration-300",
-        sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
-      )}>
+      <div
+        className={cn(
+          "flex flex-1 flex-col transition-all duration-300",
+          sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
+        )}
+      >
         {/* Top Header */}
         <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
           <div className="flex items-center">
@@ -199,12 +206,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </Button>
 
             {/* Breadcrumb or Page Title */}
-            <div className={cn(
-              "transition-all duration-300",
-              sidebarCollapsed ? "lg:ml-2" : "ml-4 lg:ml-0"
-            )}>
+            <div
+              className={cn(
+                "transition-all duration-300",
+                sidebarCollapsed ? "lg:ml-2" : "ml-4 lg:ml-0"
+              )}
+            >
               <h1 className="text-lg font-semibold">
-                {navigation.find(item => item.href === pathname)?.name || 'Dashboard'}
+                {navigation.find((item) => item.href === pathname)?.name ||
+                  "Dashboard"}
               </h1>
             </div>
           </div>
@@ -216,16 +226,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
             {/* Theme Toggle */}
             <ThemeToggle />
-            
 
             {/* User Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                <Button
+                  variant="ghost"
+                  className="relative h-8 w-8 rounded-full"
+                >
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="/placeholder-user.jpg" alt={user?.name} />
                     <AvatarFallback>
-                      {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                      {user?.name?.charAt(0) || user?.email?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -234,7 +246,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {user?.name || 'User'}
+                      {user?.name || "User"}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {user?.email}
@@ -265,12 +277,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Main Content Area */}
-        <main className={cn(
-          "flex-1 overflow-auto transition-all duration-300 p-4 lg:p-6"
-        )}>
+        <main
+          className={cn(
+            "flex-1 overflow-auto transition-all duration-300 p-4 lg:p-6"
+          )}
+        >
           {children}
         </main>
       </div>
     </div>
-  )
+  );
 }
