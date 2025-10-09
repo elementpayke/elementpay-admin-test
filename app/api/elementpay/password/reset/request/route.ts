@@ -3,10 +3,24 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    
+    console.log('Proxying password reset request for:', body.email)
+    console.log('Password reset request body:', { 
+      email: body.email, 
+      isSandbox: !!body.sandbox,
+      bodyKeys: Object.keys(body)
+    })
 
-    // Use live ElementPay API from environment variable
-    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+    // Choose the correct ElementPay API based on sandbox parameter
+    const isSandbox = body.sandbox === true || body.sandbox === 'true'
+    const elementPayBaseUrl = isSandbox 
+      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
+      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+    
     const resetRequestUrl = `${elementPayBaseUrl}/auth/password/reset/request`
+    
+    console.log('Using ElementPay URL:', resetRequestUrl)
+    console.log('Environment:', isSandbox ? 'SANDBOX' : 'LIVE')
     
     const response = await fetch(resetRequestUrl, {
       method: 'POST',

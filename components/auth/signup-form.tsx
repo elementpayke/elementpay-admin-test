@@ -1,75 +1,109 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { EnvironmentToggle, EnvironmentIndicator } from "@/components/ui/environment-toggle"
-import { useEnvironment } from "@/hooks/use-environment"
-import { toast as sonnerToast } from "sonner"
-import { Eye, EyeOff } from "lucide-react"
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  EnvironmentToggle,
+  EnvironmentIndicator,
+} from "@/components/ui/environment-toggle";
+import { useEnvironment } from "@/hooks/use-environment";
+import { toast as sonnerToast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function SignupForm() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { toast } = useToast()
-  const { environment, isSandbox, switchToSandbox, switchToLive } = useEnvironment()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+  });
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const { environment, isSandbox, switchToSandbox, switchToLive } =
+    useEnvironment();
 
   useEffect(() => {
-    const sandboxParam = searchParams.get('sandbox')
-    if (sandboxParam === 'true') {
-      switchToSandbox()
+    const sandboxParam = searchParams.get("sandbox");
+    if (sandboxParam === "true") {
+      switchToSandbox();
       sonnerToast.info("Sandbox Mode", {
         description: "You're signing up for ElementPay's sandbox environment.",
         duration: 5000,
-      })
+      });
     }
-  }, [searchParams, switchToSandbox])
-  
+  }, [searchParams, switchToSandbox]);
+
+  // Validate password in real-time
+  const validatePassword = (password: string) => {
+    const validation = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+    };
+    setPasswordValidation(validation);
+    return validation;
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    validatePassword(newPassword);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     // Basic validation
     if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
       sonnerToast.error("Missing Information", {
         description: "Please fill in all required fields.",
         duration: 4000,
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       sonnerToast.error("Invalid Email", {
         description: "Please enter a valid email address.",
         duration: 4000,
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     // Password validation
-    if (password.length < 8) {
-      sonnerToast.error("Password Too Short", {
-        description: "Password must be at least 8 characters long.",
-        duration: 4000,
-      })
-      setIsLoading(false)
-      return
+    const validation = validatePassword(password);
+    if (
+      !validation.length ||
+      !validation.uppercase ||
+      !validation.lowercase ||
+      !validation.number
+    ) {
+      sonnerToast.error("Invalid Password", {
+        description:
+          "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number.",
+        duration: 6000,
+      });
+      setIsLoading(false);
+      return;
     }
 
     // Confirm password validation
@@ -77,93 +111,111 @@ export default function SignupForm() {
       sonnerToast.error("Passwords Don't Match", {
         description: "Please ensure both password fields match.",
         duration: 4000,
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     try {
       // Show loading toast for longer operations
       const loadingToast = sonnerToast.loading("Creating Account...", {
         description: "Please wait while we set up your account.",
-      })
+      });
 
       const response = await fetch("/api/elementpay/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          email: email.trim().toLowerCase(), 
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
           password: password.trim(),
           role: "developer", // Default role
-          sandbox: environment === 'sandbox'
+          sandbox: environment === "sandbox",
         }),
-      })
+      });
 
       // Dismiss loading toast
-      sonnerToast.dismiss(loadingToast)
+      sonnerToast.dismiss(loadingToast);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Registration failed" }))
-        
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Registration failed" }));
+
         // Handle specific error cases
-        if (response.status === 409 || errorData.error?.includes("already exists")) {
+        if (
+          response.status === 409 ||
+          errorData.error?.includes("already exists")
+        ) {
           sonnerToast.error("Account Already Exists", {
-            description: "An account with this email already exists. Try logging in instead.",
+            description:
+              "An account with this email already exists. Try logging in instead.",
             duration: 6000,
             action: {
               label: "Go to Login",
-              onClick: () => router.push("/auth/login")
-            }
-          })
-          return
-        }
-        
-        if (response.status === 422) {
-          sonnerToast.error("Invalid Information", {
-            description: errorData.error || "Please check your information and try again.",
-            duration: 6000,
-          })
-          return
+              onClick: () => router.push("/auth/login"),
+            },
+          });
+          return;
         }
 
-        if (response.status === 500 || errorData.error?.includes("Internal Server Error")) {
+        if (response.status === 422) {
+          sonnerToast.error("Invalid Information", {
+            description:
+              errorData.error || "Please check your information and try again.",
+            duration: 6000,
+          });
+          return;
+        }
+
+        if (
+          response.status === 500 ||
+          errorData.error?.includes("Internal Server Error")
+        ) {
           sonnerToast.error("Service Unavailable", {
-            description: "Registration service is temporarily down. Please try again in a few minutes.",
+            description:
+              "Registration service is temporarily down. Please try again in a few minutes.",
             duration: 10000,
             action: {
               label: "Retry",
-              onClick: () => handleSubmit({ preventDefault: () => {} } as React.FormEvent)
-            }
-          })
-          return
+              onClick: () =>
+                handleSubmit({ preventDefault: () => {} } as React.FormEvent),
+            },
+          });
+          return;
         }
 
-        throw new Error(errorData.error || errorData.detail || "Registration failed")
+        throw new Error(
+          errorData.error || errorData.detail || "Registration failed"
+        );
       }
 
       sonnerToast.success("Registration Successful", {
         description: "Please check your email for a verification code.",
         duration: 5000,
-      })
-      router.push(`/auth/verify-email?email=${encodeURIComponent(email.trim())}`)
+      });
+      router.push(
+        `/auth/verify-email?email=${encodeURIComponent(email.trim())}`
+      );
     } catch (error: any) {
-      console.error("Registration error:", error)
+      console.error("Registration error:", error);
       // Dismiss any loading toasts
-      sonnerToast.dismiss()
+      sonnerToast.dismiss();
       sonnerToast.error("Registration Failed", {
-        description: error.message || "An unexpected error occurred. Please try again.",
+        description:
+          error.message || "An unexpected error occurred. Please try again.",
         duration: 6000,
         action: {
           label: "Retry",
-          onClick: () => handleSubmit({ preventDefault: () => {} } as React.FormEvent)
-        }
-      })
+          onClick: () =>
+            handleSubmit({ preventDefault: () => {} } as React.FormEvent),
+        },
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -181,7 +233,6 @@ export default function SignupForm() {
       {/* Environment Info Banner */}
       {isSandbox && (
         <div className="bg-blue-50 border border-blue-200 text-center rounded-lg p-3 mb-4">
-         
           <p className="text-xs text-blue-600">
             You're creating a sandbox account for testing and development.
           </p>
@@ -190,7 +241,6 @@ export default function SignupForm() {
 
       {!isSandbox && (
         <div className="bg-green-50 border border-green-200 text-center rounded-lg p-3 mb-4">
-          
           <p className="text-xs text-green-600">
             You're creating a live production account.
           </p>
@@ -217,7 +267,7 @@ export default function SignupForm() {
             type={showPassword ? "text" : "password"}
             required
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
             disabled={isLoading}
             className="pr-10"
           />
@@ -234,9 +284,57 @@ export default function SignupForm() {
             )}
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Password must be at least 8 characters long.
-        </p>
+        <div className="mt-2 space-y-1">
+          <p className="text-xs font-medium text-gray-700">
+            Password requirements:
+          </p>
+          <div className="grid grid-cols-2 gap-1 text-xs">
+            <div
+              className={`flex items-center gap-1 ${
+                passwordValidation.length ? "text-green-600" : "text-gray-400"
+              }`}
+            >
+              <span className="text-xs">
+                {passwordValidation.length ? "✓" : "○"}
+              </span>
+              At least 8 characters
+            </div>
+            <div
+              className={`flex items-center gap-1 ${
+                passwordValidation.uppercase
+                  ? "text-green-600"
+                  : "text-gray-400"
+              }`}
+            >
+              <span className="text-xs">
+                {passwordValidation.uppercase ? "✓" : "○"}
+              </span>
+              One uppercase letter
+            </div>
+            <div
+              className={`flex items-center gap-1 ${
+                passwordValidation.lowercase
+                  ? "text-green-600"
+                  : "text-gray-400"
+              }`}
+            >
+              <span className="text-xs">
+                {passwordValidation.lowercase ? "✓" : "○"}
+              </span>
+              One lowercase letter
+            </div>
+            <div
+              className={`flex items-center gap-1 ${
+                passwordValidation.number ? "text-green-600" : "text-gray-400"
+              }`}
+            >
+              <span className="text-xs">
+                {passwordValidation.number ? "✓" : "○"}
+              </span>
+              One number
+            </div>
+          </div>
+        </div>
       </div>
       <div>
         <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -264,18 +362,24 @@ export default function SignupForm() {
           </button>
         </div>
         {confirmPassword && password !== confirmPassword && (
-          <p className="text-xs text-red-500 mt-1">
-            Passwords do not match.
-          </p>
+          <p className="text-xs text-red-500 mt-1">Passwords do not match.</p>
         )}
       </div>
-      <Button 
-        type="submit" 
-        className={`w-full ${isSandbox ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`} 
+      <Button
+        type="submit"
+        className={`w-full ${
+          isSandbox
+            ? "bg-blue-600 hover:bg-blue-700"
+            : "bg-green-600 hover:bg-green-700"
+        }`}
         disabled={isLoading}
       >
-        {isLoading ? "Creating Account..." : isSandbox ? "Sign Up for Sandbox" : "Sign Up for Live"}
+        {isLoading
+          ? "Creating Account..."
+          : isSandbox
+          ? "Sign Up for Sandbox"
+          : "Sign Up for Live"}
       </Button>
     </form>
-  )
+  );
 }

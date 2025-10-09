@@ -50,7 +50,7 @@ export type OrderStatus = "PENDING" | "PROCESSING" | "SETTLED" | "FAILED" | "CAN
 
 export type Currency = "KES"
 
-export type Token = "BASE_USDC" | "ETH" | "BTC" | "BASE_USDC(Testnet)"
+export type Token = "BASE_USDC" | "ETH" | "BTC" | "BASE_USDC(Testnet)" | "USDT" | "USDC" | "WXM"
 
 export type FiatPayload = {
   amount_fiat: number
@@ -163,7 +163,44 @@ export type ExchangeRate = {
   token: Token
   rate: number // KES per token
   lastUpdated: string
-  expiresAt: string
+  expiresAt?: string
+}
+
+// ElementPay specific types
+export type ElementPayToken = {
+  symbol: string
+  name: string
+  chain: string
+  chainId: number
+  tokenAddress: string
+  decimals: number
+  icon?: string
+}
+
+export type ElementPayRate = {
+  currency: string
+  base_rate: number
+  marked_up_rate: number
+  markup_percentage: number
+}
+
+export type ElementPayOrderPayload = {
+  user_address: string
+  token: string // Token contract address
+  order_type: 1 // Always 1 for off-ramp
+  fiat_payload: {
+    amount_fiat: number
+    cashout_type: "PHONE"
+    phone_number: string
+    currency: "KES"
+  }
+  message_hash: string // Encrypted message
+}
+
+export type WalletBalance = {
+  token: ElementPayToken
+  balance: number
+  formattedBalance: string
 }
 
 export type DisbursementQuote = {

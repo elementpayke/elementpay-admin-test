@@ -1,61 +1,64 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import Link from "next/link"
-import { toast as sonnerToast } from "sonner"
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { EnvironmentToggle } from "@/components/ui/environment-toggle";
+import { useEnvironment } from "@/hooks/use-environment";
+import Link from "next/link";
+import { toast as sonnerToast } from "sonner";
 
 export default function VerifyEmailForm() {
-  const [email, setEmail] = useState("")
-  const [verificationCode, setVerificationCode] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isResending, setIsResending] = useState(false)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { toast } = useToast()
+  const [email, setEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const { environment, isSandbox } = useEnvironment();
 
   // Pre-fill email from URL params
   useEffect(() => {
-    const emailParam = searchParams.get("email")
+    const emailParam = searchParams.get("email");
     if (emailParam) {
-      setEmail(decodeURIComponent(emailParam))
+      setEmail(decodeURIComponent(emailParam));
     }
-  }, [searchParams])
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     // Basic validation
     if (!email.trim() || !verificationCode.trim()) {
       sonnerToast.error("Missing Information", {
         description: "Please enter both email and verification code.",
         duration: 4000,
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       sonnerToast.error("Invalid Email", {
         description: "Please enter a valid email address.",
         duration: 4000,
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     try {
       // Show loading toast
       const loadingToast = sonnerToast.loading("Verifying Email...", {
         description: "Please wait while we verify your email address.",
-      })
+      });
 
       const response = await fetch("/api/elementpay/verify-email", {
         method: "POST",
@@ -65,119 +68,146 @@ export default function VerifyEmailForm() {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           verification_code: verificationCode.trim(),
+          sandbox: environment === "sandbox",
         }),
-      })
+      });
 
       // Dismiss loading toast
-      sonnerToast.dismiss(loadingToast)
+      sonnerToast.dismiss(loadingToast);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Verification failed" }))
-        
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Verification failed" }));
+
         // Handle specific error cases from ElementPay API
         if (response.status === 400) {
           // Check for specific error messages
-          if (errorData.message?.includes("expired") || errorData.message?.includes("Verification code has expired")) {
+          if (
+            errorData.message?.includes("expired") ||
+            errorData.message?.includes("Verification code has expired")
+          ) {
             sonnerToast.error("Verification Code Expired", {
-              description: "Your verification code has expired. Please request a new one.",
+              description:
+                "Your verification code has expired. Please request a new one.",
               duration: 8000,
               action: {
                 label: "Get New Code",
-                onClick: () => handleResendCode()
-              }
-            })
-            return
-          } else if (errorData.message?.includes("invalid") || errorData.message?.includes("Invalid")) {
+                onClick: () => handleResendCode(),
+              },
+            });
+            return;
+          } else if (
+            errorData.message?.includes("invalid") ||
+            errorData.message?.includes("Invalid")
+          ) {
             sonnerToast.error("Invalid Verification Code", {
-              description: "The verification code you entered is incorrect. Please check your email and try again.",
+              description:
+                "The verification code you entered is incorrect. Please check your email and try again.",
               duration: 6000,
               action: {
                 label: "Resend Code",
-                onClick: () => handleResendCode()
-              }
-            })
-            return
+                onClick: () => handleResendCode(),
+              },
+            });
+            return;
           } else {
             sonnerToast.error("Verification Failed", {
-              description: errorData.message || "The verification code is invalid or has expired. Please check your email or request a new code.",
+              description:
+                errorData.message ||
+                "The verification code is invalid or has expired. Please check your email or request a new code.",
               duration: 6000,
               action: {
                 label: "Get New Code",
-                onClick: () => handleResendCode()
-              }
-            })
-            return
+                onClick: () => handleResendCode(),
+              },
+            });
+            return;
           }
         }
-        
+
         if (response.status === 404) {
           sonnerToast.error("Account Not Found", {
-            description: "No account found with this email address. Please check your email or create a new account.",
+            description:
+              "No account found with this email address. Please check your email or create a new account.",
             duration: 6000,
             action: {
               label: "Sign Up",
-              onClick: () => router.push("/auth/signup")
-            }
-          })
-          return
+              onClick: () => router.push("/auth/signup"),
+            },
+          });
+          return;
         }
 
-        if (response.status === 500 || errorData.message?.includes("Internal Server Error")) {
+        if (
+          response.status === 500 ||
+          errorData.message?.includes("Internal Server Error")
+        ) {
           sonnerToast.error("Service Unavailable", {
-            description: "Email verification service is temporarily down. Please try again in a few minutes.",
+            description:
+              "Email verification service is temporarily down. Please try again in a few minutes.",
             duration: 10000,
             action: {
               label: "Retry",
-              onClick: () => handleSubmit({ preventDefault: () => {} } as React.FormEvent)
-            }
-          })
-          return
+              onClick: () =>
+                handleSubmit({ preventDefault: () => {} } as React.FormEvent),
+            },
+          });
+          return;
         }
 
-        throw new Error(errorData.error || errorData.message || errorData.detail || "Email verification failed")
+        throw new Error(
+          errorData.error ||
+            errorData.message ||
+            errorData.detail ||
+            "Email verification failed"
+        );
       }
 
       sonnerToast.success("Email Verified Successfully", {
         description: "Your account has been verified. Redirecting to login...",
         duration: 3000,
-      })
-      
+      });
+
       setTimeout(() => {
-        router.push("/auth/login")
-      }, 1500)
+        router.push("/auth/login");
+      }, 1500);
     } catch (error: any) {
-      console.error("Email verification error:", error)
+      console.error("Email verification error:", error);
       // Dismiss any loading toasts
-      sonnerToast.dismiss()
+      sonnerToast.dismiss();
       sonnerToast.error("Verification Failed", {
-        description: error.message || "Unable to verify your email. Please try again.",
+        description:
+          error.message || "Unable to verify your email. Please try again.",
         duration: 6000,
         action: {
           label: "Retry",
-          onClick: () => handleSubmit({ preventDefault: () => {} } as React.FormEvent)
-        }
-      })
+          onClick: () =>
+            handleSubmit({ preventDefault: () => {} } as React.FormEvent),
+        },
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleResendCode = async () => {
     if (!email.trim()) {
       sonnerToast.error("Missing Email", {
         description: "Please enter your email address first.",
         duration: 4000,
-      })
-      return
+      });
+      return;
     }
 
-    setIsResending(true)
+    setIsResending(true);
 
     try {
       // Show loading toast for resend operation
       const loadingToast = sonnerToast.loading("Sending New Code...", {
-        description: "Please wait while we send a new verification code to your email.",
-      })
+        description:
+          "Please wait while we send a new verification code to your email.",
+      });
 
       const response = await fetch("/api/auth/resend-verification", {
         method: "POST",
@@ -186,76 +216,118 @@ export default function VerifyEmailForm() {
         },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
+          sandbox: environment === "sandbox",
         }),
-      })
+      });
 
       // Dismiss loading toast
-      sonnerToast.dismiss(loadingToast)
+      sonnerToast.dismiss(loadingToast);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to resend verification code" }))
-        
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Failed to resend verification code" }));
+
         if (response.status === 404) {
           sonnerToast.error("Account Not Found", {
-            description: "No account found with this email address. Please check your email or create a new account.",
+            description:
+              "No account found with this email address. Please check your email or create a new account.",
             duration: 6000,
             action: {
               label: "Sign Up",
-              onClick: () => router.push("/auth/signup")
-            }
-          })
-          return
+              onClick: () => router.push("/auth/signup"),
+            },
+          });
+          return;
         }
-        
+
         if (response.status === 429) {
           sonnerToast.error("Too Many Requests", {
-            description: "Please wait a few minutes before requesting another verification code.",
+            description:
+              "Please wait a few minutes before requesting another verification code.",
             duration: 8000,
-          })
-          return
+          });
+          return;
         }
 
         if (response.status === 500) {
           sonnerToast.error("Service Unavailable", {
-            description: "Unable to send verification code at this time. Please try again in a few minutes.",
+            description:
+              "Unable to send verification code at this time. Please try again in a few minutes.",
             duration: 8000,
             action: {
               label: "Retry",
-              onClick: () => handleResendCode()
-            }
-          })
-          return
+              onClick: () => handleResendCode(),
+            },
+          });
+          return;
         }
-        
-        throw new Error(errorData.error || errorData.message || errorData.detail || "Failed to resend verification code")
+
+        throw new Error(
+          errorData.error ||
+            errorData.message ||
+            errorData.detail ||
+            "Failed to resend verification code"
+        );
       }
 
       sonnerToast.success("New Code Sent", {
-        description: "A new verification code has been sent to your email. Please check your inbox.",
+        description:
+          "A new verification code has been sent to your email. Please check your inbox.",
         duration: 5000,
-      })
-      
+      });
+
       // Clear the verification code field so user enters the new one
-      setVerificationCode("")
+      setVerificationCode("");
     } catch (error: any) {
-      console.error("Resend verification error:", error)
+      console.error("Resend verification error:", error);
       // Dismiss any loading toasts
-      sonnerToast.dismiss()
+      sonnerToast.dismiss();
       sonnerToast.error("Resend Failed", {
-        description: error.message || "Unable to resend verification code. Please try again.",
+        description:
+          error.message ||
+          "Unable to resend verification code. Please try again.",
         duration: 6000,
         action: {
           label: "Retry",
-          onClick: () => handleResendCode()
-        }
-      })
+          onClick: () => handleResendCode(),
+        },
+      });
     } finally {
-      setIsResending(false)
+      setIsResending(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Environment Toggle */}
+      <div className="flex justify-center mb-4">
+        <EnvironmentToggle
+          variant="badge-buttons"
+          size="md"
+          showLabels={true}
+          showIcons={true}
+          disabled={isLoading || isResending}
+        />
+      </div>
+
+      {/* Environment Info Banner */}
+      {isSandbox && (
+        <div className="bg-blue-50 border border-blue-200 text-center rounded-lg p-3 mb-4">
+          <p className="text-xs text-blue-600">
+            Verifying email for sandbox environment.
+          </p>
+        </div>
+      )}
+
+      {!isSandbox && (
+        <div className="bg-green-50 border border-green-200 text-center rounded-lg p-3 mb-4">
+          <p className="text-xs text-green-600">
+            Verifying email for live production environment.
+          </p>
+        </div>
+      )}
+
       <div>
         <Label htmlFor="email">Email Address</Label>
         <Input
@@ -280,10 +352,14 @@ export default function VerifyEmailForm() {
           disabled={isLoading || isResending}
         />
       </div>
-      <Button type="submit" className="w-full" disabled={isLoading || isResending}>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isLoading || isResending}
+      >
         {isLoading ? "Verifying..." : "Verify Email"}
       </Button>
-      
+
       <div className="text-center space-y-2">
         <Button
           type="button"
@@ -297,10 +373,7 @@ export default function VerifyEmailForm() {
       </div>
 
       <div className="text-center text-sm">
-        <Link
-          href="/auth/login"
-          className="text-muted-foreground underline"
-        >
+        <Link href="/auth/login" className="text-muted-foreground underline">
           Back to Login
         </Link>
       </div>
@@ -311,5 +384,5 @@ export default function VerifyEmailForm() {
         </Link>
       </div>
     </form>
-  )
+  );
 }

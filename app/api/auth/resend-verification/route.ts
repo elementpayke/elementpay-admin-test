@@ -2,18 +2,30 @@ import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
   try {
-    const { email } = await req.json()
+    const body = await req.json()
+    const { email, sandbox } = body
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
-    // Proxy to Element Pay resend verification endpoint
-    const elementPayBaseUrl = process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+    console.log('Resending verification code for:', email)
+    console.log('Resend verification request body:', { 
+      email: email, 
+      isSandbox: !!sandbox,
+      bodyKeys: Object.keys(body)
+    })
+
+    // Choose the correct ElementPay API based on sandbox parameter
+    const isSandbox = sandbox === true || sandbox === 'true'
+    const elementPayBaseUrl = isSandbox 
+      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
+      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+    
     const resendUrl = `${elementPayBaseUrl}/auth/resend-verification`
     
-    console.log('Resending verification code for:', email)
     console.log('Using ElementPay URL:', resendUrl)
+    console.log('Environment:', isSandbox ? 'SANDBOX' : 'LIVE')
     
     const response = await fetch(resendUrl, {
       method: 'POST',
