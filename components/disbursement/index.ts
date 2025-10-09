@@ -5,3 +5,4 @@ export { default as BulkPaymentForm } from "./bulk-payment-form";
 export { default as PaymentSummary } from "./payment-summary";
 export { default as PaymentProgress } from "./payment-progress";
 export { default as RecentTransactions } from "./recent-transactions";
+export { default as ElementPayCalculator } from "./elementpay-calculator";

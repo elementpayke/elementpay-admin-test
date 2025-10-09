@@ -3,12 +3,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/components/ui/use-toast'
+import { elementPayRateService, type ElementPayRate } from '@/lib/elementpay-rate-service'
+import { elementPayWalletService } from '@/lib/elementpay-wallet-service'
+import { elementPayApiClient } from '@/lib/elementpay-api-client'
+import { getSupportedTokens, getCachedSupportedTokens, CURRENCY_MAP } from '@/lib/elementpay-config'
 import type { 
   Token, 
   ExchangeRate, 
   DisbursementQuote, 
   DisbursementOrder, 
-  PaymentDestination 
+  PaymentDestination,
+  ElementPayToken,
+  WalletBalance
 } from '@/lib/types'
 
 interface UseDisbursementOptions {
@@ -25,6 +31,14 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     refreshInterval = 30
   } = options
 
+  // ElementPay specific state
+  const [elementPayRates, setElementPayRates] = useState<Record<string, ElementPayRate>>({})
+  const [walletBalances, setWalletBalances] = useState<WalletBalance[]>([])
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false)
+  const [supportedTokens, setSupportedTokens] = useState<ElementPayToken[]>([])
+  const [isLoadingTokens, setIsLoadingTokens] = useState(false)
+  
+  // Legacy state for backward compatibility
   const [rates, setRates] = useState<Record<Token, ExchangeRate>>({} as Record<Token, ExchangeRate>)
   const [isLoadingRates, setIsLoadingRates] = useState(false)
   const [currentQuote, setCurrentQuote] = useState<DisbursementQuote | null>(null)
@@ -249,35 +263,26 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     fetchRecentDisbursements()
   }, [fetchRecentDisbursements])
 
-  // Fetch rates
-  const fetchRates = useCallback(async () => {
+  // Fetch ElementPay rates
+  const fetchElementPayRates = useCallback(async () => {
     setIsLoadingRates(true)
     try {
-      // Mock API call - replace with actual Element Pay API
-      const response = await makeAuthenticatedRequest(
-        '/api/elementpay/rates',
-        { method: 'GET' }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch rates')
-      }
-
-      const ratesData = await response.json()
-
-      // Transform the response to match our expected format
-      const transformedRates: Record<Token, ExchangeRate> = {}
-      ratesData.rates?.forEach((rate: any) => {
-        transformedRates[rate.token as Token] = {
-          token: rate.token,
-          rate: rate.rate,
-          lastUpdated: rate.last_updated || new Date().toISOString(),
+      const rates = await elementPayRateService.fetchAllRates()
+      setElementPayRates(rates)
+      
+      // Convert to legacy format for backward compatibility
+      const legacyRates: Record<Token, ExchangeRate> = {}
+      Object.entries(rates).forEach(([currency, rate]) => {
+        const elementPayRate = rate as ElementPayRate
+        legacyRates[currency as Token] = {
+          token: currency as Token,
+          rate: elementPayRate.marked_up_rate,
+          lastUpdated: new Date().toISOString(),
         }
       })
-
-      setRates(transformedRates)
+      setRates(legacyRates)
     } catch (error) {
-      console.error('Failed to fetch rates:', error)
+      console.error('Failed to fetch ElementPay rates:', error)
       toast({
         title: "Rate Fetch Failed",
         description: "Unable to fetch current exchange rates",
@@ -285,14 +290,56 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     } finally {
       setIsLoadingRates(false)
     }
-  }, [makeAuthenticatedRequest, toast])
+  }, [toast])
 
-  // Fetch rates on mount
+  // Fetch supported tokens
+  const fetchSupportedTokens = useCallback(async () => {
+    setIsLoadingTokens(true)
+    try {
+      const tokens = await getSupportedTokens()
+      setSupportedTokens(tokens)
+      console.log(`Successfully fetched ${tokens.length} supported tokens`)
+    } catch (error) {
+      console.error('Failed to fetch supported tokens:', error)
+      // Use cached tokens as fallback
+      const cachedTokens = getCachedSupportedTokens()
+      setSupportedTokens(cachedTokens)
+      toast({
+        title: "Token Fetch Failed",
+        description: "Using cached token list",
+      })
+    } finally {
+      setIsLoadingTokens(false)
+    }
+  }, [toast])
+
+  // Fetch wallet balances
+  const fetchWalletBalances = useCallback(async (userAddress: string) => {
+    setIsLoadingBalances(true)
+    try {
+      const balances = await elementPayWalletService.getWalletBalances(userAddress)
+      setWalletBalances(balances)
+    } catch (error) {
+      console.error('Failed to fetch wallet balances:', error)
+      toast({
+        title: "Balance Fetch Failed",
+        description: "Unable to fetch wallet balances",
+      })
+    } finally {
+      setIsLoadingBalances(false)
+    }
+  }, [toast])
+
+  // Legacy fetch rates method
+  const fetchRates = fetchElementPayRates
+
+  // Fetch tokens and rates on mount
   useEffect(() => {
+    fetchSupportedTokens()
     if (autoRefreshRates) {
       fetchRates()
     }
-  }, [fetchRates, autoRefreshRates])
+  }, [fetchSupportedTokens, fetchRates, autoRefreshRates])
 
   // Auto refresh rates
   useEffect(() => {
@@ -305,21 +352,86 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     return () => clearInterval(interval)
   }, [fetchRates, autoRefreshRates, refreshInterval])
 
+  // ElementPay specific functions
+  const processElementPayOffRamp = useCallback(async (
+    userAddress: string,
+    token: ElementPayToken,
+    kesAmount: number,
+    phoneNumber: string,
+    onProgress?: (step: string, message: string) => void
+  ) => {
+    try {
+      // Get current rate
+      const rate = elementPayRates[token.symbol]
+      if (!rate) {
+        throw new Error('Exchange rate not available')
+      }
+
+      // Process wallet interactions
+      const { approvalHash, signature, orderPayload } = await elementPayWalletService.processOffRamp(
+        userAddress,
+        token,
+        kesAmount,
+        phoneNumber,
+        rate,
+        onProgress
+      )
+
+      // Create order via API
+      onProgress?.('order_creation', 'Creating disbursement order...')
+      const order = await elementPayApiClient.createOrder(orderPayload, signature)
+
+      toast({
+        title: "Order Created Successfully",
+        description: `Order ${order.id} has been created and is being processed`,
+      })
+
+      // Refresh recent disbursements
+      await fetchRecentDisbursements()
+
+      return {
+        orderId: order.id,
+        approvalHash,
+        signature,
+        order
+      }
+    } catch (error) {
+      console.error('ElementPay off-ramp failed:', error)
+      toast({
+        title: "Off-Ramp Failed",
+        description: error instanceof Error ? error.message : "Failed to process off-ramp",
+      })
+      throw error
+    }
+  }, [elementPayRates, toast, fetchRecentDisbursements])
+
   return {
-    // State
+    // Legacy state for backward compatibility
     rates,
     isLoadingRates,
     currentQuote,
     isLoadingQuote,
     recentDisbursements,
 
-    // Actions
+    // ElementPay specific state
+    elementPayRates,
+    walletBalances,
+    isLoadingBalances,
+    supportedTokens,
+    isLoadingTokens,
+
+    // Legacy actions
     fetchRates,
     getQuote,
     createDisbursement,
     fetchRecentDisbursements,
     getOrderStatus,
 
+    // ElementPay specific actions
+    fetchElementPayRates,
+    fetchWalletBalances,
+    fetchSupportedTokens,
+    processElementPayOffRamp,
   }
 }
 

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import AuthGuard from "@/components/auth/auth-guard";
 import DashboardLayout from "@/components/dashboard/dashboard-layout";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +13,7 @@ import {
   PaymentSummary,
   PaymentProgress as PaymentProgressComponent,
   RecentTransactions,
+  ElementPayCalculator,
 } from "@/components/disbursement";
 import type {
   Token,
@@ -22,6 +23,8 @@ import type {
   DisbursementQuote,
   DisbursementOrder,
   PaymentProgress,
+  ElementPayToken,
+  ElementPayRate,
 } from "@/lib/types";
 
 // Types for payment data
@@ -54,6 +57,14 @@ export default function DisbursementPage() {
     fetchRates,
     getQuote,
     createDisbursement,
+    // ElementPay specific
+    elementPayRates,
+    walletBalances,
+    isLoadingBalances,
+    supportedTokens,
+    fetchElementPayRates,
+    fetchWalletBalances,
+    processElementPayOffRamp,
   } = useDisbursement();
 
   // Wallet state
@@ -83,16 +94,35 @@ export default function DisbursementPage() {
     useState<PaymentProgress | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
+  // ElementPay state
+  const [elementPayCalculation, setElementPayCalculation] = useState<{
+    selectedToken: ElementPayToken | null;
+    kesAmount: number;
+    tokenAmount: number;
+    rate: ElementPayRate | null;
+    isValid: boolean;
+    phoneNumber: string;
+  } | null>(null);
+
   // Get token balance for selected token
   const selectedTokenBalance = { balance: 125.5, token: selectedToken };
   // Get current rate from rates data
   const currentRate = rates?.[selectedToken]?.rate || 130.5; // Mock rate for demo
 
   // Wallet connection handler
-  const handleWalletConnection = (connected: boolean, address?: string) => {
-    setIsWalletConnected(connected);
-    setWalletAddress(address || "");
-  };
+  const handleWalletConnection = useCallback(
+    (connected: boolean, address?: string) => {
+      setIsWalletConnected(connected);
+      setWalletAddress(address || "");
+
+      // Fetch wallet balances when connected (with debounce to prevent loops)
+      if (connected && address && address !== walletAddress) {
+        console.log("Fetching wallet balances for:", address);
+        fetchWalletBalances(address);
+      }
+    },
+    [walletAddress, fetchWalletBalances]
+  );
 
   // Phone number validation
   const validatePhoneNumber = (phone: string): boolean => {
@@ -119,6 +149,16 @@ export default function DisbursementPage() {
 
   // Calculate payment summary
   const getPaymentSummary = (): PaymentSummary => {
+    // Use ElementPay calculation if available
+    if (elementPayCalculation?.isValid) {
+      return {
+        totalRecipients: 1,
+        totalAmount: elementPayCalculation.kesAmount,
+        currency: "KES",
+      };
+    }
+
+    // Fallback to legacy calculation
     if (paymentMode === "single") {
       return {
         totalRecipients:
@@ -145,6 +185,12 @@ export default function DisbursementPage() {
   const isFormValid = (): boolean => {
     if (!isWalletConnected) return false;
 
+    // Check ElementPay calculation first
+    if (elementPayCalculation?.isValid) {
+      return true;
+    }
+
+    // Fallback to legacy validation
     if (paymentMode === "single") {
       return (
         validatePhoneNumber(singlePayment.phoneNumber) &&
@@ -160,8 +206,52 @@ export default function DisbursementPage() {
     }
   };
 
-  // Process payments
+  // Process ElementPay off-ramp
+  const processElementPayPayment = async () => {
+    if (!elementPayCalculation?.isValid || !walletAddress) return;
+
+    setIsProcessingPayment(true);
+
+    try {
+      const result = await processElementPayOffRamp(
+        walletAddress,
+        elementPayCalculation.selectedToken!,
+        elementPayCalculation.kesAmount,
+        elementPayCalculation.phoneNumber,
+        (step, message) => {
+          setPaymentProgress({ step: step as any, message });
+        }
+      );
+
+      setPaymentProgress({
+        step: "completed",
+        message: `Successfully created order ${result.orderId}. Your payment is being processed.`,
+      });
+
+      // Reset form
+      setElementPayCalculation(null);
+      setShowConfirmDialog(false);
+    } catch (error) {
+      setPaymentProgress({
+        step: "failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Payment processing failed. Please try again.",
+      });
+    } finally {
+      setIsProcessingPayment(false);
+      setTimeout(() => setPaymentProgress(null), 5000);
+    }
+  };
+
+  // Legacy process payments (for backward compatibility)
   const processPayments = async () => {
+    if (elementPayCalculation?.isValid) {
+      return processElementPayPayment();
+    }
+
+    // Fallback to legacy processing
     if (!isFormValid()) return;
 
     setIsProcessingPayment(true);
@@ -220,26 +310,31 @@ export default function DisbursementPage() {
       <DashboardLayout>
         <div className="container mx-auto p-6 space-y-6 !w-full">
           {/* Header */}
-          <div className="flex flex-col space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">
-              Crypto Disbursement
-            </h1>
-            <p className="text-muted-foreground">
-              Send cryptocurrency payments to multiple recipients via M-PESA
-            </p>
+          <div className="flex flex-row  w-full justify-between">
+            <div className="flex flex-col space-y-2">
+              <h1 className="text-3xl font-bold tracking-tight">
+                Crypto Disbursement
+              </h1>
+              <p className="text-muted-foreground">
+                Send cryptocurrency payments to multiple recipients via M-PESA
+              </p>
+            </div>
+            <WalletConnection
+              onConnectionChange={handleWalletConnection}
+              className="!w-fit"
+            />
           </div>
 
-          {/* Wallet Connection */}
-          <WalletConnection
-            onConnectionChange={handleWalletConnection}
-            className="!w-full"
+          {/* ElementPay Calculator */}
+          <ElementPayCalculator
+            onCalculationChange={setElementPayCalculation}
+            walletBalances={walletBalances}
+            className="mb-6"
+            supportedTokens={supportedTokens}
           />
 
-          {/* Wallet Status */}
-          <WalletStatus className="!w-full" />
-
-          {/* Payment Mode Selection */}
-          <PaymentModeSelection
+          {/* Legacy Payment Mode Selection (for backward compatibility) */}
+          {/* <PaymentModeSelection
             paymentMode={paymentMode}
             onPaymentModeChange={setPaymentMode}
             singlePayment={singlePayment}
@@ -252,7 +347,7 @@ export default function DisbursementPage() {
             onUploadedFileChange={setUploadedFile}
             validatePhoneNumber={validatePhoneNumber}
             validateAmount={validateAmount}
-          />
+          /> */}
 
           {/* Payment Summary & Submit */}
           <PaymentSummary

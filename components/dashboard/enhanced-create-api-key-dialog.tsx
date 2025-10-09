@@ -29,8 +29,12 @@ import {
   Phone,
   Building,
   Copy,
+  Shield,
+  AlertTriangle,
 } from "lucide-react";
 import type { Environment } from "@/lib/types";
+import { useUserProfile } from "@/hooks/use-user-profile";
+import { useEnvironment } from "@/hooks/use-environment";
 
 interface CreateApiKeyDialogProps {
   isOpen: boolean;
@@ -110,7 +114,17 @@ export function CreateApiKeyDialog({
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [rotateExisting, setRotateExisting] = useState(false);
 
-  const environment: Environment = defaultEnvironment || "testnet";
+  // Get current environment and user profile
+  const { environment: currentEnvironment } = useEnvironment();
+  const {
+    userProfile,
+    isKycVerified,
+    canCreateLiveApiKeys,
+    isLoading: profileLoading,
+  } = useUserProfile();
+
+  const environment: Environment =
+    currentEnvironment === "live" ? "mainnet" : "testnet";
 
   // Password strength calculation
   const passwordStrength = useMemo(() => {
@@ -177,6 +191,10 @@ export function CreateApiKeyDialog({
   // Check if user is in live/mainnet environment
   const isLiveEnvironment = environment === "mainnet";
 
+  // Determine if user can create API keys in current environment
+  const canCreateApiKey = isLiveEnvironment ? canCreateLiveApiKeys : true;
+  const showKycRequirement = isLiveEnvironment && !canCreateLiveApiKeys;
+
   // Copy to clipboard function
   const copyToClipboard = async (text: string) => {
     try {
@@ -192,36 +210,53 @@ export function CreateApiKeyDialog({
       <DialogContent className="sm:max-w-[700px] max-h-[70vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isLiveEnvironment
-              ? "Live Environment Access"
+            {showKycRequirement
+              ? "KYC Verification Required"
+              : isLiveEnvironment && canCreateApiKey
+              ? "Create Live API Key"
               : "Create New API Key"}
           </DialogTitle>
           <DialogDescription>
-            {isLiveEnvironment
-              ? "To access ElementPay's live production environment, we need to verify your identity and collect some additional information."
+            {showKycRequirement
+              ? "To create API keys for ElementPay's live production environment, you need to complete KYC verification first."
+              : isLiveEnvironment && canCreateApiKey
+              ? "Create a new API key for ElementPay's live production environment."
               : "Create a new API key for ElementPay sandbox environment. Choose between REST API or WebSocket connections."}
           </DialogDescription>
         </DialogHeader>
-        {isLiveEnvironment ? (
-          // Live Environment - KYC Contact Information
+
+        {/* Loading state */}
+        {profileLoading && isLiveEnvironment && (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-muted-foreground">
+                Checking KYC status...
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* KYC Verification Required */}
+        {showKycRequirement && !profileLoading ? (
           <div className="grid gap-6 py-4 px-2">
-            {/* Environment Display */}
+            {/* KYC Status Display */}
             <div className="space-y-3">
-              <Label>Environment</Label>
-              <div className="flex items-center space-x-3 border rounded-lg p-4 bg-green-50 dark:bg-green-950/20">
-                <Globe className="h-5 w-5 text-green-600" />
+              <Label>Current Status</Label>
+              <div className="flex items-center space-x-3 border rounded-lg p-4 bg-orange-50 dark:bg-orange-950/20">
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
                 <div className="flex items-center justify-between w-full">
                   <div>
-                    <div className="font-medium">Mainnet (Production)</div>
+                    <div className="font-medium">KYC Verification Pending</div>
                     <p className="text-sm text-muted-foreground">
-                      Live production environment
+                      Identity verification required for live environment
                     </p>
                   </div>
                   <Badge
                     variant="secondary"
-                    className="bg-green-600 text-white"
+                    className="bg-orange-600 text-white"
                   >
-                    Production
+                    Pending
                   </Badge>
                 </div>
               </div>
@@ -317,6 +352,256 @@ export function CreateApiKeyDialog({
               </div>
             </div>
           </div>
+        ) : isLiveEnvironment && canCreateApiKey ? (
+          // Live Environment - KYC Verified - Show API Key Creation Form
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-6 py-4 px-2">
+              {/* KYC Verified Status */}
+              <div className="space-y-3">
+                <Label>Verification Status</Label>
+                <div className="flex items-center space-x-3 border rounded-lg p-4 bg-green-50 dark:bg-green-950/20">
+                  <Shield className="h-5 w-5 text-green-600" />
+                  <div className="flex items-center justify-between w-full">
+                    <div>
+                      <div className="font-medium">KYC Verified</div>
+                      <p className="text-sm text-muted-foreground">
+                        You can create live production API keys
+                      </p>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className="bg-green-600 text-white"
+                    >
+                      Verified
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* API Key Name */}
+              <div className="space-y-3">
+                <Label htmlFor="name">API Key Name</Label>
+                <Input
+                  id="name"
+                  placeholder="e.g., Production App Key, Live API"
+                  value={keyName}
+                  onChange={(e) => setKeyName(e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
+
+              {/* WebSocket Configuration */}
+              <div className="space-y-4 border rounded-lg p-4 bg-green-50/50 dark:bg-green-950/10">
+                <h3>Webhook Configuration (Optional)</h3>
+
+                <div className="space-y-4 border-t pt-4">
+                  {/* Rotate Existing Option */}
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="rotate"
+                      checked={rotateExisting}
+                      onCheckedChange={setRotateExisting}
+                      className="data-[state=checked]:bg-green-600"
+                    />
+                    <Label htmlFor="rotate" className="text-sm">
+                      Rotate existing key if one exists
+                    </Label>
+                  </div>
+
+                  {/* Webhook URL */}
+                  <div className="space-y-2">
+                    <Label htmlFor="webhookUrl" className="text-sm font-medium">
+                      Webhook URL <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="webhookUrl"
+                      type="url"
+                      placeholder="https://example.com/webhook"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      className={
+                        enableWebhook && !webhookUrl.trim()
+                          ? "border-red-300"
+                          : ""
+                      }
+                    />
+                  </div>
+
+                  {/* Webhook Secret */}
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="webhookSecret"
+                      className="text-sm font-medium"
+                    >
+                      Webhook Secret <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="webhookSecret"
+                        type={showWebhookSecret ? "text" : "password"}
+                        placeholder="Enter a strong secret"
+                        value={webhookSecret}
+                        onChange={(e) => setWebhookSecret(e.target.value)}
+                        className={
+                          enableWebhook &&
+                          (!webhookSecret.trim() || passwordStrength.score < 75)
+                            ? "border-red-300 pr-10"
+                            : "pr-10"
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                      >
+                        {showWebhookSecret ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Password Strength Indicator */}
+                    {webhookSecret && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">
+                            Password Strength
+                          </span>
+                          <span
+                            className={`text-xs font-medium ${
+                              passwordStrength.score >= 75
+                                ? "text-green-600"
+                                : passwordStrength.score >= 50
+                                ? "text-yellow-600"
+                                : passwordStrength.score >= 25
+                                ? "text-orange-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {passwordStrength.score >= 75
+                              ? "Strong"
+                              : passwordStrength.score >= 50
+                              ? "Good"
+                              : passwordStrength.score >= 25
+                              ? "Fair"
+                              : "Weak"}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-300 ${passwordStrength.color}`}
+                            style={{ width: `${passwordStrength.score}%` }}
+                          />
+                        </div>
+                        {passwordStrength.feedback.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-gray-600">
+                              Requirements:
+                            </p>
+                            <ul className="space-y-1">
+                              {passwordStrength.feedback.map((item, index) => (
+                                <li
+                                  key={index}
+                                  className="flex items-center space-x-2 text-xs"
+                                >
+                                  <X className="h-3 w-3 text-red-500" />
+                                  <span className="text-red-600">{item}</span>
+                                </li>
+                              ))}
+                              {/* Show completed requirements */}
+                              {webhookSecret.length >= 8 && (
+                                <li className="flex items-center space-x-2 text-xs">
+                                  <Check className="h-3 w-3 text-green-500" />
+                                  <span className="text-green-600">
+                                    At least 8 characters
+                                  </span>
+                                </li>
+                              )}
+                              {/[A-Z]/.test(webhookSecret) && (
+                                <li className="flex items-center space-x-2 text-xs">
+                                  <Check className="h-3 w-3 text-green-500" />
+                                  <span className="text-green-600">
+                                    One uppercase letter
+                                  </span>
+                                </li>
+                              )}
+                              {/[a-z]/.test(webhookSecret) && (
+                                <li className="flex items-center space-x-2 text-xs">
+                                  <Check className="h-3 w-3 text-green-500" />
+                                  <span className="text-green-600">
+                                    One lowercase letter
+                                  </span>
+                                </li>
+                              )}
+                              {/[0-9!@#$%^&*(),.?":{}|<>]/.test(
+                                webhookSecret
+                              ) && (
+                                <li className="flex items-center space-x-2 text-xs">
+                                  <Check className="h-3 w-3 text-green-500" />
+                                  <span className="text-green-600">
+                                    One number or special character
+                                  </span>
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Environment */}
+              <div className="space-y-3">
+                <Label>Environment</Label>
+                <div className="flex items-center space-x-3 border rounded-lg p-4 bg-green-50 dark:bg-green-950/20">
+                  <Globe className="h-5 w-5 text-green-600" />
+                  <div className="flex items-center justify-between w-full">
+                    <div>
+                      <div className="font-medium">Mainnet (Production)</div>
+                      <p className="text-sm text-muted-foreground">
+                        Live production environment
+                      </p>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className="bg-green-600 text-white"
+                    >
+                      Production
+                    </Badge>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This API key will work with real transactions and live data.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isCreating}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!isFormValid || isCreating}>
+                {isCreating ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Creating...</span>
+                  </div>
+                ) : (
+                  "Create Live API Key"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         ) : (
           // Sandbox Environment - Regular API Key Creation Form
           <form onSubmit={handleSubmit}>
@@ -550,8 +835,8 @@ export function CreateApiKeyDialog({
           </form>
         )}
 
-        {/* Footer for Live Environment */}
-        {isLiveEnvironment && (
+        {/* Footer for KYC Required */}
+        {showKycRequirement && !profileLoading && (
           <DialogFooter>
             <Button
               type="button"
