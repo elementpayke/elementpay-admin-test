@@ -128,7 +128,7 @@ class ElementPayWalletService {
         address: token.tokenAddress as `0x${string}`,
         functionName: 'approve',
         args: [
-          ELEMENTPAY_CONFIG.CONTRACT_ADDRESS as `0x${string}`,
+          ELEMENTPAY_CONFIG.getContractAddress() as `0x${string}`,
           amountInUnits
         ]
       })
@@ -156,13 +156,14 @@ class ElementPayWalletService {
         throw new Error('MetaMask not found')
       }
 
-      // Create encrypted message hash
-      const messageHash = elementPayEncryption.encryptMessage(
-        phoneNumber,
-        kesAmount,
-        ELEMENTPAY_CONFIG.CURRENCY,
-        rate.marked_up_rate
-      )
+      // Create encrypted message hash using the detailed method
+      const messageHash = elementPayEncryption.encryptMessageDetailed({
+        cashout_type: ELEMENTPAY_CONFIG.CASHOUT_TYPE,
+        amount_fiat: kesAmount,
+        currency: ELEMENTPAY_CONFIG.CURRENCY,
+        rate: rate.marked_up_rate,
+        phone_number: phoneNumber
+      })
 
       // Create order payload
       const orderPayload: ElementPayOrderPayload = {
@@ -176,6 +177,7 @@ class ElementPayWalletService {
           currency: ELEMENTPAY_CONFIG.CURRENCY,
         },
         message_hash: messageHash,
+        reason: "Off-ramp" // Add reason field as per requirements
       }
 
       // Sign the message

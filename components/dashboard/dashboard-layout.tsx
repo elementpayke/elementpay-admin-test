@@ -52,12 +52,12 @@ const navigation = [
     icon: ArrowLeftRight,
     description: "Order history and creation",
   },
-  // {
-  //   name: "Make Payment",
-  //   href: "/dashboard/disbursement",
-  //   icon: CreditCard,
-  //   description: 'Make payment to your customers',
-  // }
+  {
+    name: "Off-Ramp Crypto",
+    href: "/dashboard/disbursement",
+    icon: CreditCard,
+    description: "Convert crypto to KES via M-PESA",
+  },
 ];
 
 interface DashboardLayoutProps {

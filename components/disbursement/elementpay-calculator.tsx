@@ -14,11 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle } from "lucide-react";
-import {
-  SUPPORTED_TOKENS,
-  VALIDATION,
-  ERROR_MESSAGES,
-} from "@/lib/elementpay-config";
+import { ELEMENTPAY_CONFIG, ERROR_MESSAGES } from "@/lib/elementpay-config";
 import {
   elementPayRateService,
   type ElementPayRate,
@@ -63,15 +59,15 @@ export default function ElementPayCalculator({
 
   // Validation functions
   const validatePhoneNumber = (phone: string): boolean => {
-    return VALIDATION.PHONE_REGEX.test(phone.replace(/\s/g, ""));
+    return ELEMENTPAY_CONFIG.PHONE_REGEX.test(phone.replace(/\s/g, ""));
   };
 
   const validateAmount = (amount: string): boolean => {
     const num = parseFloat(amount);
     return (
       !isNaN(num) &&
-      num >= VALIDATION.MIN_AMOUNT &&
-      num <= VALIDATION.MAX_AMOUNT
+      num >= ELEMENTPAY_CONFIG.MIN_AMOUNT &&
+      num <= ELEMENTPAY_CONFIG.MAX_AMOUNT
     );
   };
 
@@ -291,13 +287,22 @@ export default function ElementPayCalculator({
                 <AlertDescription>{rateError}</AlertDescription>
               </Alert>
             ) : currentRate ? (
-              <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm">1 {selectedToken.symbol} =</span>
                   <span className="font-medium">
                     KES {currentRate.marked_up_rate.toFixed(2)}
                   </span>
                 </div>
+                {currentRate.markup_percentage > 0 && (
+                  <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <span>Markup ({currentRate.markup_percentage}%)</span>
+                    <span>
+                      Applied to amounts over KES{" "}
+                      {ELEMENTPAY_CONFIG.MARKUP_THRESHOLD}
+                    </span>
+                  </div>
+                )}
                 {currentRate.markup_percentage > 0 && (
                   <div className="text-xs text-muted-foreground mt-1">
                     Includes {currentRate.markup_percentage.toFixed(1)}% markup

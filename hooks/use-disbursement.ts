@@ -37,6 +37,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
   const [isLoadingBalances, setIsLoadingBalances] = useState(false)
   const [supportedTokens, setSupportedTokens] = useState<ElementPayToken[]>([])
   const [isLoadingTokens, setIsLoadingTokens] = useState(false)
+  const [isProcessingOffRamp, setIsProcessingOffRamp] = useState(false)
   
   // Legacy state for backward compatibility
   const [rates, setRates] = useState<Record<Token, ExchangeRate>>({} as Record<Token, ExchangeRate>)
@@ -263,96 +264,83 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     fetchRecentDisbursements()
   }, [fetchRecentDisbursements])
 
-  // Fetch ElementPay rates
-  const fetchElementPayRates = useCallback(async () => {
-    setIsLoadingRates(true)
+  // Legacy fetch rates method (placeholder)
+  const fetchRates = useCallback(async () => {
+    // This will be replaced by fetchElementPayRates
+  }, [])
+
+  // ElementPay specific functions
+  const fetchElementPayRates = useCallback(async (currencies?: string[]) => {
     try {
-      const rates = await elementPayRateService.fetchAllRates()
-      setElementPayRates(rates)
+      setIsLoadingRates(true)
+      const currenciesToFetch = currencies || Object.keys(CURRENCY_MAP)
       
-      // Convert to legacy format for backward compatibility
-      const legacyRates: Record<Token, ExchangeRate> = {}
-      Object.entries(rates).forEach(([currency, rate]) => {
-        const elementPayRate = rate as ElementPayRate
-        legacyRates[currency as Token] = {
-          token: currency as Token,
-          rate: elementPayRate.marked_up_rate,
-          lastUpdated: new Date().toISOString(),
+      const ratePromises = currenciesToFetch.map(async (currency) => {
+        try {
+          const rate = await elementPayRateService.fetchRate(currency)
+          return { currency, rate }
+        } catch (error) {
+          console.error(`Failed to fetch rate for ${currency}:`, error)
+          return null
         }
       })
-      setRates(legacyRates)
+
+      const results = await Promise.allSettled(ratePromises)
+      const newRates: Record<string, ElementPayRate> = {}
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          newRates[result.value.currency] = result.value.rate
+        }
+      })
+
+      setElementPayRates(newRates)
     } catch (error) {
       console.error('Failed to fetch ElementPay rates:', error)
       toast({
         title: "Rate Fetch Failed",
-        description: "Unable to fetch current exchange rates",
+        description: "Failed to fetch current exchange rates",
+        variant: "destructive"
       })
     } finally {
       setIsLoadingRates(false)
     }
   }, [toast])
 
-  // Fetch supported tokens
-  const fetchSupportedTokens = useCallback(async () => {
-    setIsLoadingTokens(true)
-    try {
-      const tokens = await getSupportedTokens()
-      setSupportedTokens(tokens)
-      console.log(`Successfully fetched ${tokens.length} supported tokens`)
-    } catch (error) {
-      console.error('Failed to fetch supported tokens:', error)
-      // Use cached tokens as fallback
-      const cachedTokens = getCachedSupportedTokens()
-      setSupportedTokens(cachedTokens)
-      toast({
-        title: "Token Fetch Failed",
-        description: "Using cached token list",
-      })
-    } finally {
-      setIsLoadingTokens(false)
-    }
-  }, [toast])
-
-  // Fetch wallet balances
   const fetchWalletBalances = useCallback(async (userAddress: string) => {
-    setIsLoadingBalances(true)
+    if (!userAddress) return
+
     try {
+      setIsLoadingBalances(true)
       const balances = await elementPayWalletService.getWalletBalances(userAddress)
       setWalletBalances(balances)
     } catch (error) {
       console.error('Failed to fetch wallet balances:', error)
       toast({
         title: "Balance Fetch Failed",
-        description: "Unable to fetch wallet balances",
+        description: "Failed to fetch wallet balances",
+        variant: "destructive"
       })
     } finally {
       setIsLoadingBalances(false)
     }
   }, [toast])
 
-  // Legacy fetch rates method
-  const fetchRates = fetchElementPayRates
-
-  // Fetch tokens and rates on mount
-  useEffect(() => {
-    fetchSupportedTokens()
-    if (autoRefreshRates) {
-      fetchRates()
+  const fetchSupportedTokens = useCallback(async () => {
+    try {
+      setIsLoadingTokens(true)
+      const tokens = await getSupportedTokens()
+      setSupportedTokens(tokens)
+    } catch (error) {
+      console.error('Failed to fetch supported tokens:', error)
+      // Use cached tokens as fallback
+      const cachedTokens = getCachedSupportedTokens()
+      setSupportedTokens(cachedTokens)
+    } finally {
+      setIsLoadingTokens(false)
     }
-  }, [fetchSupportedTokens, fetchRates, autoRefreshRates])
+  }, [])
 
-  // Auto refresh rates
-  useEffect(() => {
-    if (!autoRefreshRates) return
-
-    const interval = setInterval(() => {
-      fetchRates()
-    }, refreshInterval * 1000)
-
-    return () => clearInterval(interval)
-  }, [fetchRates, autoRefreshRates, refreshInterval])
-
-  // ElementPay specific functions
   const processElementPayOffRamp = useCallback(async (
     userAddress: string,
     token: ElementPayToken,
@@ -361,6 +349,8 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     onProgress?: (step: string, message: string) => void
   ) => {
     try {
+      setIsProcessingOffRamp(true)
+      
       // Get current rate
       const rate = elementPayRates[token.symbol]
       if (!rate) {
@@ -400,10 +390,18 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
       toast({
         title: "Off-Ramp Failed",
         description: error instanceof Error ? error.message : "Failed to process off-ramp",
+        variant: "destructive"
       })
       throw error
+    } finally {
+      setIsProcessingOffRamp(false)
     }
   }, [elementPayRates, toast, fetchRecentDisbursements])
+
+  // Initialize supported tokens on mount
+  useEffect(() => {
+    fetchSupportedTokens()
+  }, [fetchSupportedTokens])
 
   return {
     // Legacy state for backward compatibility
@@ -419,6 +417,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     isLoadingBalances,
     supportedTokens,
     isLoadingTokens,
+    isProcessingOffRamp,
 
     // Legacy actions
     fetchRates,

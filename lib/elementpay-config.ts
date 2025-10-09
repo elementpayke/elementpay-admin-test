@@ -2,8 +2,16 @@ import { environmentManager } from './api-config'
 
 // ElementPay Configuration
 export const ELEMENTPAY_CONFIG = {
-  // Contract Address
-  CONTRACT_ADDRESS: process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS || '0x...',
+  // Contract Addresses - Environment specific
+  CONTRACT_ADDRESS_LIVE: process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_LIVE || '0x...',
+  CONTRACT_ADDRESS_SANDBOX: process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_SANDBOX || '0x...',
+  
+  // Get contract address based on current environment
+  getContractAddress: () => {
+    return environmentManager.isSandbox() 
+      ? ELEMENTPAY_CONFIG.CONTRACT_ADDRESS_SANDBOX 
+      : ELEMENTPAY_CONFIG.CONTRACT_ADDRESS_LIVE
+  },
   
   // Encryption
   SECRET_KEY: process.env.NEXT_PUBLIC_ELEMENTPAY_SECRET_KEY || "Nt-H5Ofmhk1JonVFjrRJr_pV6p-oADX_FdrQyFAqx5Y=",
@@ -12,6 +20,15 @@ export const ELEMENTPAY_CONFIG = {
   CASHOUT_TYPE: "PHONE" as const,
   CURRENCY: "KES" as const,
   ORDER_TYPE: 1 as const, // Off-ramp
+  
+  // Validation constants
+  MIN_AMOUNT: 1, // Minimum KES amount
+  MAX_AMOUNT: 100000, // Maximum KES amount (100k KES)
+  MARKUP_PERCENTAGE: 2.5, // 2.5% markup for amounts over 100 KES
+  MARKUP_THRESHOLD: 100, // Apply markup for amounts over 100 KES
+  
+  // Phone number validation
+  PHONE_REGEX: /^(\+254|254|0)?[17]\d{8}$/,
   
   // Dynamic API URL getter
   getAggregatorUrl: () => {

@@ -50,12 +50,17 @@ class ElementPayApiClient {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), VALIDATION.API_TIMEOUT)
 
-      const response = await fetch(`${this.getAggregatorUrl()}/orders/create`, {
+      // Use the base URL directly for orders endpoint
+      const baseUrl = ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox' 
+        ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
+        : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+
+      const response = await fetch(`${baseUrl}/orders/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': this.apiKey ? `Bearer ${this.apiKey}` : '',
           'X-Signature': signature,
         },
         body: JSON.stringify(orderPayload),

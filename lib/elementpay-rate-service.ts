@@ -25,11 +25,11 @@ class ElementPayRateService {
       
       // Use environment manager to get the correct base URL
       const baseUrl = environmentManager.getBaseUrl()
-      const aggregatorUrl = `${baseUrl}/aggregator`
+      const currentEnv = environmentManager.getCurrentEnvironment()
       
-      console.log(`Fetching rate for ${currency} from: ${aggregatorUrl}/rates/${mappedCurrency}`)
+      console.log(`Fetching rate for ${currency} from: ${baseUrl}/rates?currency=${mappedCurrency}&q=OffRamp`)
       
-      const response = await fetch(`${aggregatorUrl}/rates/${mappedCurrency}`, {
+      const response = await fetch(`${baseUrl}/rates?currency=${mappedCurrency}&q=OffRamp`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -79,14 +79,18 @@ class ElementPayRateService {
 
   /**
    * Calculate token amount needed for a given KES amount
+   * Applies 2.5% markup for amounts over 100 KES
    */
   calculateTokenAmount(kesAmount: number, rate: ElementPayRate): number {
     if (kesAmount <= 0 || rate.marked_up_rate <= 0) {
       return 0
     }
 
+    // Apply 2.5% markup for amounts over 100 KES
+    const finalKesAmount = this.applyMarkup(kesAmount)
+
     // Convert KES to USD using the marked up rate
-    const usdAmount = kesAmount / rate.marked_up_rate
+    const usdAmount = finalKesAmount / rate.marked_up_rate
     
     // Return USD amount (tokens are pegged 1:1 with USD)
     return parseFloat(usdAmount.toFixed(6))
@@ -94,6 +98,7 @@ class ElementPayRateService {
 
   /**
    * Calculate KES amount from token amount
+   * Applies 2.5% markup for amounts over 100 KES
    */
   calculateKesAmount(tokenAmount: number, rate: ElementPayRate): number {
     if (tokenAmount <= 0 || rate.marked_up_rate <= 0) {
@@ -101,26 +106,72 @@ class ElementPayRateService {
     }
 
     // Convert USD to KES using the marked up rate
-    const kesAmount = tokenAmount * rate.marked_up_rate
+    const baseKesAmount = tokenAmount * rate.marked_up_rate
     
-    return parseFloat(kesAmount.toFixed(2))
+    // Apply 2.5% markup for amounts over 100 KES
+    const finalKesAmount = this.applyMarkup(baseKesAmount)
+    
+    return parseFloat(finalKesAmount.toFixed(2))
+  }
+
+  /**
+   * Apply 2.5% markup for amounts over 100 KES
+   */
+  applyMarkup(kesAmount: number): number {
+    if (kesAmount <= ELEMENTPAY_CONFIG.MARKUP_THRESHOLD) {
+      return kesAmount
+    }
+
+    const markup = kesAmount * (ELEMENTPAY_CONFIG.MARKUP_PERCENTAGE / 100)
+    return kesAmount + markup
+  }
+
+  /**
+   * Calculate markup amount
+   */
+  calculateMarkup(kesAmount: number): number {
+    if (kesAmount <= ELEMENTPAY_CONFIG.MARKUP_THRESHOLD) {
+      return 0
+    }
+
+    return kesAmount * (ELEMENTPAY_CONFIG.MARKUP_PERCENTAGE / 100)
+  }
+
+  /**
+   * Get breakdown of costs including markup
+   */
+  getCostBreakdown(kesAmount: number): {
+    baseAmount: number
+    markupAmount: number
+    totalAmount: number
+    markupApplied: boolean
+  } {
+    const markupAmount = this.calculateMarkup(kesAmount)
+    const totalAmount = kesAmount + markupAmount
+    
+    return {
+      baseAmount: kesAmount,
+      markupAmount,
+      totalAmount,
+      markupApplied: markupAmount > 0
+    }
   }
 
   /**
    * Validate KES amount
    */
   validateKesAmount(amount: number): { isValid: boolean; error?: string } {
-    if (amount < VALIDATION.MIN_AMOUNT) {
+    if (amount < ELEMENTPAY_CONFIG.MIN_AMOUNT) {
       return {
         isValid: false,
-        error: `Minimum amount is ${VALIDATION.MIN_AMOUNT} KES`
+        error: `Minimum amount is ${ELEMENTPAY_CONFIG.MIN_AMOUNT} KES`
       }
     }
 
-    if (amount > VALIDATION.MAX_AMOUNT) {
+    if (amount > ELEMENTPAY_CONFIG.MAX_AMOUNT) {
       return {
         isValid: false,
-        error: `Maximum amount is ${VALIDATION.MAX_AMOUNT.toLocaleString()} KES`
+        error: `Maximum amount is ${ELEMENTPAY_CONFIG.MAX_AMOUNT.toLocaleString()} KES`
       }
     }
 

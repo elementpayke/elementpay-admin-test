@@ -7,7 +7,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useDisbursement } from "@/hooks/use-disbursement";
 import { useToast } from "@/components/ui/use-toast";
 import WalletConnection from "@/components/dashboard/wallet-connection";
-import WalletStatus from "@/components/dashboard/wallet-status";
 import {
   PaymentModeSelection,
   PaymentSummary,
@@ -310,13 +309,13 @@ export default function DisbursementPage() {
       <DashboardLayout>
         <div className="container mx-auto p-6 space-y-6 !w-full">
           {/* Header */}
-          <div className="flex flex-row  w-full justify-between">
+          <div className="flex flex-row w-full justify-between">
             <div className="flex flex-col space-y-2">
               <h1 className="text-3xl font-bold tracking-tight">
-                Crypto Disbursement
+                Crypto Off-Ramp
               </h1>
               <p className="text-muted-foreground">
-                Send cryptocurrency payments to multiple recipients via M-PESA
+                Convert your crypto tokens to KES and receive funds via M-PESA
               </p>
             </div>
             <WalletConnection
@@ -324,6 +323,36 @@ export default function DisbursementPage() {
               className="!w-fit"
             />
           </div>
+
+          {/* Wallet Status */}
+          {isWalletConnected && walletAddress && walletBalances.length > 0 && (
+            <div className="bg-card border rounded-lg p-4 mb-6">
+              <h3 className="text-sm font-medium mb-3">Wallet Balances</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {walletBalances.map((balance) => (
+                  <div
+                    key={balance.token.tokenAddress}
+                    className="flex justify-between items-center p-3 bg-muted/50 rounded-lg"
+                  >
+                    <div>
+                      <div className="font-medium">{balance.token.symbol}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {balance.token.chain}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">
+                        {balance.formattedBalance}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {balance.token.symbol}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ElementPay Calculator */}
           <ElementPayCalculator
@@ -349,18 +378,82 @@ export default function DisbursementPage() {
             validateAmount={validateAmount}
           /> */}
 
-          {/* Payment Summary & Submit */}
-          <PaymentSummary
-            summary={summary}
-            isFormValid={isFormValid()}
-            isProcessingPayment={isProcessingPayment}
-            showConfirmDialog={showConfirmDialog}
-            onShowConfirmDialogChange={setShowConfirmDialog}
-            onProcessPayments={processPayments}
-            currentRate={currentRate}
-            selectedToken={selectedToken}
-            selectedTokenBalance={selectedTokenBalance}
-          />
+          {/* Off-Ramp Confirmation & Submit */}
+          {elementPayCalculation?.isValid && (
+            <div className="bg-card border rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4">
+                Confirm Off-Ramp Transaction
+              </h3>
+
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between">
+                  <span>Token to send:</span>
+                  <span className="font-medium">
+                    {elementPayCalculation.tokenAmount.toFixed(6)}{" "}
+                    {elementPayCalculation.selectedToken?.symbol}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>KES to receive:</span>
+                  <span className="font-medium">
+                    KES {elementPayCalculation.kesAmount.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Phone number:</span>
+                  <span className="font-medium">
+                    {elementPayCalculation.phoneNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Network:</span>
+                  <span>{elementPayCalculation.selectedToken?.chain}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={isProcessingPayment || !isFormValid()}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessingPayment ? "Processing..." : "Confirm Off-Ramp"}
+              </button>
+
+              {/* Confirmation Dialog */}
+              {showConfirmDialog && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-card p-6 rounded-lg max-w-md w-full mx-4">
+                    <h3 className="text-lg font-semibold mb-4">
+                      Confirm Transaction
+                    </h3>
+                    <p className="text-muted-foreground mb-6">
+                      You are about to send{" "}
+                      {elementPayCalculation.tokenAmount.toFixed(6)}{" "}
+                      {elementPayCalculation.selectedToken?.symbol}
+                      to receive KES{" "}
+                      {elementPayCalculation.kesAmount.toLocaleString()} via
+                      M-PESA.
+                    </p>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => setShowConfirmDialog(false)}
+                        className="flex-1 border border-border hover:bg-accent h-10 px-4 rounded-md"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={processPayments}
+                        disabled={isProcessingPayment}
+                        className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 rounded-md"
+                      >
+                        {isProcessingPayment ? "Processing..." : "Confirm"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Payment Progress */}
           <PaymentProgressComponent paymentProgress={paymentProgress} />

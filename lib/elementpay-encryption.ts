@@ -43,6 +43,32 @@ class ElementPayEncryption {
   }
 
   /**
+   * Encrypt message with detailed payload for off-ramping
+   * Enhanced version that matches the user requirements
+   */
+  encryptMessageDetailed(payload: {
+    cashout_type: string;
+    amount_fiat: number;
+    currency: string;
+    rate: number;
+    phone_number: string;
+  }): string {
+    try {
+      const message = `${payload.cashout_type}:${payload.phone_number}:${payload.amount_fiat}:${payload.currency}:${payload.rate}`
+      
+      const token = new Fernet.Token({
+        secret: this.secret,
+        time: Math.floor(Date.now() / 1000),
+      })
+      
+      return token.encode(message)
+    } catch (error) {
+      console.error('Detailed message encryption failed:', error)
+      throw new Error('Failed to encrypt message')
+    }
+  }
+
+  /**
    * Decrypt message (for testing/debugging purposes)
    */
   decryptMessage(encryptedMessage: string): string {

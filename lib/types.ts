@@ -195,6 +195,7 @@ export type ElementPayOrderPayload = {
     currency: "KES"
   }
   message_hash: string // Encrypted message
+  reason?: string // Optional reason field
 }
 
 export type WalletBalance = {
