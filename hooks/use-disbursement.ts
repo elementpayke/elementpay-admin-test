@@ -7,6 +7,8 @@ import { elementPayRateService, type ElementPayRate } from '@/lib/elementpay-rat
 import { elementPayWalletService } from '@/lib/elementpay-wallet-service'
 import { elementPayApiClient } from '@/lib/elementpay-api-client'
 import { getSupportedTokens, getCachedSupportedTokens, CURRENCY_MAP } from '@/lib/elementpay-config'
+import { getBalance } from '@wagmi/core'
+import { useConfig } from 'wagmi'
 import type { 
   Token, 
   ExchangeRate, 
@@ -25,6 +27,7 @@ interface UseDisbursementOptions {
 export function useDisbursement(options: UseDisbursementOptions = {}) {
   const { makeAuthenticatedRequest } = useAuth()
   const { toast } = useToast()
+  const wagmiConfig = useConfig()
   
   const {
     autoRefreshRates = true,
@@ -312,8 +315,42 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
 
     try {
       setIsLoadingBalances(true)
-      const balances = await elementPayWalletService.getWalletBalances(userAddress)
+      
+      // Use a simpler approach that doesn't rely on getConfig
+      const supportedTokens = getCachedSupportedTokens()
+      const balances: WalletBalance[] = []
+      
+      for (const token of supportedTokens) {
+        try {
+          // Use wagmi's getBalance with proper config parameter structure
+          const balance = await getBalance(wagmiConfig, {
+            address: userAddress as `0x${string}`,
+            token: token.tokenAddress as `0x${string}`,
+            chainId: token.chainId,
+          })
+
+          const formattedBalance = parseFloat(balance.formatted).toFixed(6)
+          
+          balances.push({
+            token,
+            balance: parseFloat(balance.formatted),
+            formattedBalance
+          })
+          
+          console.log(`✅ Fetched balance for ${token.symbol}: ${formattedBalance}`)
+        } catch (error) {
+          console.error(`❌ Failed to get balance for ${token.symbol}:`, error)
+          // Add zero balance for failed tokens
+          balances.push({
+            token,
+            balance: 0,
+            formattedBalance: '0.000000'
+          })
+        }
+      }
+      
       setWalletBalances(balances)
+      console.log(`✅ Successfully fetched balances for ${balances.length} tokens`)
     } catch (error) {
       console.error('Failed to fetch wallet balances:', error)
       toast({
@@ -346,13 +383,30 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     token: ElementPayToken,
     kesAmount: number,
     phoneNumber: string,
-    onProgress?: (step: string, message: string) => void
+    onProgress?: (step: string, message: string) => void,
+    providedRate?: ElementPayRate // Add optional rate parameter
   ) => {
     try {
       setIsProcessingOffRamp(true)
       
-      // Get current rate
-      const rate = elementPayRates[token.symbol]
+      // Get current rate - try provided rate first, then stored rates, then fetch fresh
+      let rate = providedRate || elementPayRates[token.symbol]
+      
+      if (!rate) {
+        onProgress?.('rate_fetch', 'Fetching current exchange rate...')
+        try {
+          rate = await elementPayRateService.fetchRate(token.symbol)
+          // Store the fetched rate
+          setElementPayRates(prev => ({
+            ...prev,
+            [token.symbol]: rate!
+          }))
+        } catch (error) {
+          console.error('Failed to fetch rate:', error)
+          throw new Error('Unable to fetch current exchange rate. Please try again.')
+        }
+      }
+      
       if (!rate) {
         throw new Error('Exchange rate not available')
       }

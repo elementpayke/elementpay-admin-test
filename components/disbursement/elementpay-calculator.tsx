@@ -85,6 +85,7 @@ export default function ElementPayCalculator({
   const fetchRate = useCallback(async (token: ElementPayToken) => {
     if (!token) return;
 
+    console.log(`🔄 Fetching rate for token: ${token.symbol}`);
     setIsLoadingRate(true);
     setRateError(null);
 
@@ -93,14 +94,17 @@ export default function ElementPayCalculator({
         token.symbol as keyof typeof import("@/lib/elementpay-config").CURRENCY_MAP
       );
 
+      console.log(`✅ Rate fetched for ${token.symbol}:`, rate);
+
       if (rate && elementPayRateService.validateRate(rate)) {
         setCurrentRate(rate);
         setRateError(null);
+        console.log(`✅ Rate set successfully for ${token.symbol}`);
       } else {
         throw new Error("Invalid rate data received");
       }
     } catch (error) {
-      console.error("Failed to fetch rate:", error);
+      console.error(`❌ Failed to fetch rate for ${token.symbol}:`, error);
       setRateError(ERROR_MESSAGES.RATE_FETCH_FAILED);
       setCurrentRate(null);
     } finally {

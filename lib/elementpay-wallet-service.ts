@@ -1,7 +1,6 @@
 import { ethers } from 'ethers'
 import { parseUnits, formatUnits, erc20Abi } from 'viem'
 import { writeContract, switchChain, getAccount, getBalance } from '@wagmi/core'
-import { getConfig } from '@wagmi/core'
 import { ELEMENTPAY_CONFIG, getCachedSupportedTokens, ERROR_MESSAGES } from './elementpay-config'
 import { elementPayEncryption } from './elementpay-encryption'
 import type { ElementPayToken, ElementPayRate, ElementPayOrderPayload, WalletBalance } from './types'
@@ -48,18 +47,38 @@ class ElementPayWalletService {
   }
 
   /**
-   * Get balance for a specific token
+   * Get balance for a specific token using wagmi's getBalance
+   * Note: This method requires wagmi config to be passed from the calling context
    */
-  async getTokenBalance(userAddress: string, token: ElementPayToken): Promise<WalletBalance> {
+  async getTokenBalance(userAddress: string, token: ElementPayToken, config?: any): Promise<WalletBalance> {
     try {
-      const config = getConfig()
-      const balance = await getBalance(config, {
-        address: userAddress as `0x${string}`,
-        token: token.tokenAddress as `0x${string}`,
+      console.log(`🔍 Getting balance for ${token.symbol} on ${token.chain}:`, {
+        userAddress,
+        tokenAddress: token.tokenAddress,
         chainId: token.chainId,
+        decimals: token.decimals
       })
 
+      // Use wagmi's getBalance function with config if provided
+      const balance = config 
+        ? await getBalance(config, {
+            address: userAddress as `0x${string}`,
+            token: token.tokenAddress as `0x${string}`,
+            chainId: token.chainId,
+          })
+        : await getBalance({
+            address: userAddress as `0x${string}`,
+            token: token.tokenAddress as `0x${string}`,
+            chainId: token.chainId,
+          })
+
       const formattedBalance = formatUnits(balance.value, token.decimals)
+      
+      console.log(`💰 Balance result for ${token.symbol}:`, {
+        rawValue: balance.value.toString(),
+        formattedBalance,
+        decimals: token.decimals
+      })
       
       return {
         token,
@@ -67,11 +86,11 @@ class ElementPayWalletService {
         formattedBalance: parseFloat(formattedBalance).toFixed(6)
       }
     } catch (error) {
-      console.error(`Failed to get balance for ${token.symbol}:`, error)
+      console.error(`❌ Failed to get balance for ${token.symbol}:`, error)
       return {
         token,
         balance: 0,
-        formattedBalance: '0.00'
+        formattedBalance: '0.000000'
       }
     }
   }
@@ -82,10 +101,11 @@ class ElementPayWalletService {
   async checkSufficientBalance(
     userAddress: string,
     token: ElementPayToken,
-    requiredAmount: number
+    requiredAmount: number,
+    config?: any
   ): Promise<boolean> {
     try {
-      const balance = await this.getTokenBalance(userAddress, token)
+      const balance = await this.getTokenBalance(userAddress, token, config)
       return balance.balance >= requiredAmount
     } catch (error) {
       console.error('Failed to check balance:', error)
@@ -98,8 +118,7 @@ class ElementPayWalletService {
    */
   async switchToTokenNetwork(token: ElementPayToken): Promise<boolean> {
     try {
-      const config = getConfig()
-      await switchChain(config, { chainId: token.chainId })
+      await switchChain({ chainId: token.chainId })
       return true
     } catch (error) {
       console.error(`Failed to switch to ${token.chain}:`, error)
@@ -122,15 +141,15 @@ class ElementPayWalletService {
       const amountInUnits = parseUnits(amount.toString(), token.decimals)
 
       // Execute approval transaction
-      const config = getConfig()
-      const hash = await writeContract(config, {
+      const hash = await writeContract({
         abi: erc20Abi,
         address: token.tokenAddress as `0x${string}`,
         functionName: 'approve',
         args: [
           ELEMENTPAY_CONFIG.getContractAddress() as `0x${string}`,
           amountInUnits
-        ]
+        ],
+        chainId: token.chainId
       })
 
       return hash
@@ -212,14 +231,33 @@ class ElementPayWalletService {
       // Step 1: Check balance
       onProgress?.('balance_check', 'Checking wallet balance...')
       const tokenAmount = kesAmount / rate.marked_up_rate
-      const hasSufficientBalance = await this.checkSufficientBalance(
+      
+      // Debug logging
+      console.log('🔍 Balance check details:', {
         userAddress,
-        token,
-        tokenAmount
-      )
-
-      if (!hasSufficientBalance) {
-        throw new Error(ERROR_MESSAGES.INSUFFICIENT_BALANCE)
+        tokenSymbol: token.symbol,
+        tokenAddress: token.tokenAddress,
+        chainId: token.chainId,
+        chain: token.chain,
+        requiredAmount: tokenAmount,
+        kesAmount,
+        rate: rate.marked_up_rate
+      })
+      
+      // Get current balance for detailed error message
+      const currentBalance = await this.getTokenBalance(userAddress, token)
+      
+      console.log('💰 Current balance result:', {
+        tokenSymbol: token.symbol,
+        balance: currentBalance.balance,
+        formattedBalance: currentBalance.formattedBalance,
+        requiredAmount: tokenAmount
+      })
+      
+      if (currentBalance.balance < tokenAmount) {
+        const errorMessage = `Insufficient ${token.symbol} balance. You need ${tokenAmount.toFixed(6)} ${token.symbol} but only have ${currentBalance.balance.toFixed(6)} ${token.symbol}. Please add more ${token.symbol} to your wallet or reduce the amount.`
+        console.error('❌ Insufficient balance:', errorMessage)
+        throw new Error(errorMessage)
       }
 
       // Step 2: Switch network if needed
@@ -256,8 +294,7 @@ class ElementPayWalletService {
    */
   getCurrentAccount(): { address: string; chainId: number } | null {
     try {
-      const config = getConfig()
-      const account = getAccount(config)
+      const account = getAccount()
       if (account.address && account.chainId) {
         return {
           address: account.address,

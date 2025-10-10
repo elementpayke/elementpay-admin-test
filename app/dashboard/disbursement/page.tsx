@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useDisbursement } from "@/hooks/use-disbursement";
 import { useToast } from "@/components/ui/use-toast";
 import WalletConnection from "@/components/dashboard/wallet-connection";
+import { AlertTriangle } from "lucide-react";
 import {
   PaymentModeSelection,
   PaymentSummary,
@@ -116,8 +117,10 @@ export default function DisbursementPage() {
 
       // Fetch wallet balances when connected (with debounce to prevent loops)
       if (connected && address && address !== walletAddress) {
-        console.log("Fetching wallet balances for:", address);
-        fetchWalletBalances(address);
+        console.log("🔗 Fetching wallet balances for:", address);
+        fetchWalletBalances(address).then(() => {
+          console.log("💰 Current wallet balances:", walletBalances);
+        });
       }
     },
     [walletAddress, fetchWalletBalances]
@@ -209,6 +212,42 @@ export default function DisbursementPage() {
   const processElementPayPayment = async () => {
     if (!elementPayCalculation?.isValid || !walletAddress) return;
 
+    console.log("🚀 Starting off-ramp process with:", {
+      token: elementPayCalculation.selectedToken?.symbol,
+      tokenAddress: elementPayCalculation.selectedToken?.tokenAddress,
+      chainId: elementPayCalculation.selectedToken?.chainId,
+      chain: elementPayCalculation.selectedToken?.chain,
+      kesAmount: elementPayCalculation.kesAmount,
+      phoneNumber: elementPayCalculation.phoneNumber,
+      rate: elementPayCalculation.rate,
+      walletAddress,
+    });
+
+    // Debug: Check if we have the right token balance
+    const matchingBalance = walletBalances.find(
+      (b) =>
+        b.token.tokenAddress ===
+        elementPayCalculation.selectedToken?.tokenAddress
+    );
+    console.log("🔍 Token balance check:", {
+      selectedToken: elementPayCalculation.selectedToken?.symbol,
+      selectedTokenAddress: elementPayCalculation.selectedToken?.tokenAddress,
+      matchingBalance: matchingBalance
+        ? {
+            symbol: matchingBalance.token.symbol,
+            address: matchingBalance.token.tokenAddress,
+            balance: matchingBalance.balance,
+            chain: matchingBalance.token.chain,
+          }
+        : null,
+      allBalances: walletBalances.map((b) => ({
+        symbol: b.token.symbol,
+        address: b.token.tokenAddress,
+        balance: b.balance,
+        chain: b.token.chain,
+      })),
+    });
+
     setIsProcessingPayment(true);
 
     try {
@@ -218,8 +257,10 @@ export default function DisbursementPage() {
         elementPayCalculation.kesAmount,
         elementPayCalculation.phoneNumber,
         (step, message) => {
+          console.log(`📋 Progress: ${step} - ${message}`);
           setPaymentProgress({ step: step as any, message });
-        }
+        },
+        elementPayCalculation.rate // Pass the rate from calculator
       );
 
       setPaymentProgress({
@@ -231,16 +272,30 @@ export default function DisbursementPage() {
       setElementPayCalculation(null);
       setShowConfirmDialog(false);
     } catch (error) {
+      console.error("❌ Off-ramp failed:", error);
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Payment processing failed. Please try again.";
+
       setPaymentProgress({
         step: "failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Payment processing failed. Please try again.",
+        message: errorMessage,
+      });
+
+      // Show toast notification for better visibility
+      toast({
+        title: "Off-Ramp Failed",
+        description: errorMessage,
+        variant: "destructive",
       });
     } finally {
       setIsProcessingPayment(false);
-      setTimeout(() => setPaymentProgress(null), 5000);
+      // Keep error message visible longer for insufficient balance
+      const isBalanceError =
+        error instanceof Error && error.message.includes("Insufficient");
+      setTimeout(() => setPaymentProgress(null), isBalanceError ? 10000 : 5000);
     }
   };
 
@@ -418,6 +473,41 @@ export default function DisbursementPage() {
               >
                 {isProcessingPayment ? "Processing..." : "Confirm Off-Ramp"}
               </button>
+
+              {/* Balance warning if insufficient */}
+              {elementPayCalculation?.selectedToken &&
+                walletBalances.length > 0 &&
+                (() => {
+                  const tokenBalance = walletBalances.find(
+                    (b) =>
+                      b.token.tokenAddress ===
+                      elementPayCalculation.selectedToken?.tokenAddress
+                  );
+                  const hasInsufficientBalance =
+                    tokenBalance &&
+                    elementPayCalculation.tokenAmount > tokenBalance.balance;
+
+                  if (hasInsufficientBalance) {
+                    return (
+                      <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <div className="flex items-center space-x-2 text-destructive">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span className="text-sm font-medium">
+                            Insufficient Balance
+                          </span>
+                        </div>
+                        <p className="text-sm text-destructive/80 mt-1">
+                          You need{" "}
+                          {elementPayCalculation.tokenAmount.toFixed(6)}{" "}
+                          {elementPayCalculation.selectedToken?.symbol} but only
+                          have {tokenBalance.balance.toFixed(6)}{" "}
+                          {elementPayCalculation.selectedToken?.symbol}.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
               {/* Confirmation Dialog */}
               {showConfirmDialog && (
