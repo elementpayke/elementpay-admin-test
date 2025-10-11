@@ -303,7 +303,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
       toast({
         title: "Rate Fetch Failed",
         description: "Failed to fetch current exchange rates",
-        variant: "destructive"
+        // variant: "destructive"
       })
     } finally {
       setIsLoadingRates(false)
@@ -315,48 +315,18 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
 
     try {
       setIsLoadingBalances(true)
+      console.log('🔄 Fetching wallet balances for:', userAddress)
       
-      // Use a simpler approach that doesn't rely on getConfig
-      const supportedTokens = getCachedSupportedTokens()
-      const balances: WalletBalance[] = []
-      
-      for (const token of supportedTokens) {
-        try {
-          // Use wagmi's getBalance with proper config parameter structure
-          const balance = await getBalance(wagmiConfig, {
-            address: userAddress as `0x${string}`,
-            token: token.tokenAddress as `0x${string}`,
-            chainId: token.chainId,
-          })
-
-          const formattedBalance = parseFloat(balance.formatted).toFixed(6)
-          
-          balances.push({
-            token,
-            balance: parseFloat(balance.formatted),
-            formattedBalance
-          })
-          
-          console.log(`✅ Fetched balance for ${token.symbol}: ${formattedBalance}`)
-        } catch (error) {
-          console.error(`❌ Failed to get balance for ${token.symbol}:`, error)
-          // Add zero balance for failed tokens
-          balances.push({
-            token,
-            balance: 0,
-            formattedBalance: '0.000000'
-          })
-        }
-      }
-      
+      // Use the wallet service which handles all the wagmi config properly
+      const balances = await elementPayWalletService.getWalletBalances(userAddress)
+      console.log('✅ Successfully fetched wallet balances:', balances)
       setWalletBalances(balances)
-      console.log(`✅ Successfully fetched balances for ${balances.length} tokens`)
     } catch (error) {
       console.error('Failed to fetch wallet balances:', error)
       toast({
         title: "Balance Fetch Failed",
         description: "Failed to fetch wallet balances",
-        variant: "destructive"
+        // variant: "destructive"
       })
     } finally {
       setIsLoadingBalances(false)
@@ -384,7 +354,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
     kesAmount: number,
     phoneNumber: string,
     onProgress?: (step: string, message: string) => void,
-    providedRate?: ElementPayRate // Add optional rate parameter
+    providedRate?: ElementPayRate | null // Add optional rate parameter
   ) => {
     try {
       setIsProcessingOffRamp(true)
@@ -423,7 +393,13 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
 
       // Create order via API
       onProgress?.('order_creation', 'Creating disbursement order...')
+      console.log('🔄 [DISBURSEMENT-HOOK] About to call createOrder with:', {
+        orderPayload,
+        signature: signature.substring(0, 10) + '...'
+      })
+
       const order = await elementPayApiClient.createOrder(orderPayload, signature)
+      console.log('✅ [DISBURSEMENT-HOOK] createOrder returned:', order)
 
       toast({
         title: "Order Created Successfully",
@@ -444,7 +420,7 @@ export function useDisbursement(options: UseDisbursementOptions = {}) {
       toast({
         title: "Off-Ramp Failed",
         description: error instanceof Error ? error.message : "Failed to process off-ramp",
-        variant: "destructive"
+        // variant: "destructive"
       })
       throw error
     } finally {

@@ -5,6 +5,7 @@ import AuthGuard from "@/components/auth/auth-guard";
 import DashboardLayout from "@/components/dashboard/dashboard-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { useDisbursement } from "@/hooks/use-disbursement";
+import { useEnvironment } from "@/hooks/use-environment";
 import { useToast } from "@/components/ui/use-toast";
 import WalletConnection from "@/components/dashboard/wallet-connection";
 import { AlertTriangle } from "lucide-react";
@@ -26,6 +27,7 @@ import type {
   ElementPayToken,
   ElementPayRate,
 } from "@/lib/types";
+import error from "next/error";
 
 // Types for payment data
 interface PaymentEntry {
@@ -108,6 +110,8 @@ export default function DisbursementPage() {
   const selectedTokenBalance = { balance: 125.5, token: selectedToken };
   // Get current rate from rates data
   const currentRate = rates?.[selectedToken]?.rate || 130.5; // Mock rate for demo
+
+  console.log("Element Calculation inasema : ", elementPayCalculation);
 
   // Wallet connection handler
   const handleWalletConnection = useCallback(
@@ -208,71 +212,72 @@ export default function DisbursementPage() {
     }
   };
 
-  // Process ElementPay off-ramp
-  const processElementPayPayment = async () => {
-    if (!elementPayCalculation?.isValid || !walletAddress) return;
-
-    console.log("🚀 Starting off-ramp process with:", {
-      token: elementPayCalculation.selectedToken?.symbol,
-      tokenAddress: elementPayCalculation.selectedToken?.tokenAddress,
-      chainId: elementPayCalculation.selectedToken?.chainId,
-      chain: elementPayCalculation.selectedToken?.chain,
-      kesAmount: elementPayCalculation.kesAmount,
-      phoneNumber: elementPayCalculation.phoneNumber,
-      rate: elementPayCalculation.rate,
-      walletAddress,
-    });
-
-    // Debug: Check if we have the right token balance
-    const matchingBalance = walletBalances.find(
-      (b) =>
-        b.token.tokenAddress ===
-        elementPayCalculation.selectedToken?.tokenAddress
+  // Process ElementPay payment using the proper hook flow
+  const processElementPayPayment = async (paymentData: {
+    selectedToken: ElementPayToken;
+    kesAmount: number;
+    tokenAmount: number;
+    phoneNumber: string;
+    rate: ElementPayRate;
+    walletAddress: string;
+  }) => {
+    console.log(
+      "🚀 [DISBURSEMENT-PAGE] Processing ElementPay payment via hook:",
+      {
+        token: paymentData.selectedToken.symbol,
+        kesAmount: paymentData.kesAmount,
+        tokenAmount: paymentData.tokenAmount,
+        phoneNumber: paymentData.phoneNumber.substring(0, 8) + "***",
+        walletAddress: paymentData.walletAddress,
+      }
     );
-    console.log("🔍 Token balance check:", {
-      selectedToken: elementPayCalculation.selectedToken?.symbol,
-      selectedTokenAddress: elementPayCalculation.selectedToken?.tokenAddress,
-      matchingBalance: matchingBalance
-        ? {
-            symbol: matchingBalance.token.symbol,
-            address: matchingBalance.token.tokenAddress,
-            balance: matchingBalance.balance,
-            chain: matchingBalance.token.chain,
-          }
-        : null,
-      allBalances: walletBalances.map((b) => ({
-        symbol: b.token.symbol,
-        address: b.token.tokenAddress,
-        balance: b.balance,
-        chain: b.token.chain,
-      })),
-    });
 
     setIsProcessingPayment(true);
+    setPaymentProgress({
+      step: "blockchain_processing",
+      message: "Processing your payment request...",
+    });
 
     try {
+      // Use the proper hook function that includes API order creation
       const result = await processElementPayOffRamp(
-        walletAddress,
-        elementPayCalculation.selectedToken!,
-        elementPayCalculation.kesAmount,
-        elementPayCalculation.phoneNumber,
-        (step, message) => {
-          console.log(`📋 Progress: ${step} - ${message}`);
-          setPaymentProgress({ step: step as any, message });
+        paymentData.walletAddress,
+        paymentData.selectedToken,
+        paymentData.kesAmount,
+        paymentData.phoneNumber,
+        (step: string, message: string) => {
+          console.log(`🔄 [DISBURSEMENT-PAGE] Progress: ${step} - ${message}`);
+          // Map steps to valid PaymentProgress steps
+          const validStep =
+            step === "network_switch" ||
+            step === "token_approval" ||
+            step === "message_signing"
+              ? "blockchain_processing"
+              : step === "rate_fetch"
+              ? "blockchain_processing"
+              : step === "order_creation"
+              ? "completed"
+              : (step as PaymentProgress["step"]);
+          setPaymentProgress({ step: validStep, message });
         },
-        elementPayCalculation.rate // Pass the rate from calculator
+        paymentData.rate // Pass the rate directly
       );
+
+      console.log("✅ [DISBURSEMENT-PAGE] Full payment flow completed:", {
+        orderId: result.orderId,
+        approvalHash: result.approvalHash,
+        hasSignature: !!result.signature,
+        hasOrder: !!result.order,
+      });
 
       setPaymentProgress({
         step: "completed",
-        message: `Successfully created order ${result.orderId}. Your payment is being processed.`,
+        message: `Successfully processed KES ${paymentData.kesAmount.toLocaleString()} payment`,
       });
 
-      // Reset form
-      setElementPayCalculation(null);
-      setShowConfirmDialog(false);
+      // Don't show duplicate success toast since the hook already shows it
     } catch (error) {
-      console.error("❌ Off-ramp failed:", error);
+      console.error("❌ [DISBURSEMENT-PAGE] ElementPay payment failed:", error);
 
       const errorMessage =
         error instanceof Error
@@ -284,25 +289,26 @@ export default function DisbursementPage() {
         message: errorMessage,
       });
 
-      // Show toast notification for better visibility
-      toast({
-        title: "Off-Ramp Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      // Don't show duplicate error toast since the hook already shows it
+      throw error; // Re-throw so calculator can handle it
     } finally {
       setIsProcessingPayment(false);
-      // Keep error message visible longer for insufficient balance
-      const isBalanceError =
-        error instanceof Error && error.message.includes("Insufficient");
-      setTimeout(() => setPaymentProgress(null), isBalanceError ? 10000 : 5000);
+      setTimeout(() => setPaymentProgress(null), 5000);
     }
   };
 
   // Legacy process payments (for backward compatibility)
   const processPayments = async () => {
-    if (elementPayCalculation?.isValid) {
-      return processElementPayPayment();
+    if (elementPayCalculation?.isValid && walletAddress) {
+      // Convert elementPayCalculation to the new format
+      return processElementPayPayment({
+        selectedToken: elementPayCalculation.selectedToken!,
+        kesAmount: elementPayCalculation.kesAmount,
+        tokenAmount: elementPayCalculation.tokenAmount,
+        phoneNumber: elementPayCalculation.phoneNumber,
+        rate: elementPayCalculation.rate!,
+        walletAddress,
+      });
     }
 
     // Fallback to legacy processing
@@ -412,9 +418,12 @@ export default function DisbursementPage() {
           {/* ElementPay Calculator */}
           <ElementPayCalculator
             onCalculationChange={setElementPayCalculation}
+            onProcessPayment={processElementPayPayment}
             walletBalances={walletBalances}
-            className="mb-6"
             supportedTokens={supportedTokens}
+            walletAddress={walletAddress}
+            isWalletConnected={isWalletConnected}
+            className="mb-6"
           />
 
           {/* Legacy Payment Mode Selection (for backward compatibility) */}
@@ -473,41 +482,6 @@ export default function DisbursementPage() {
               >
                 {isProcessingPayment ? "Processing..." : "Confirm Off-Ramp"}
               </button>
-
-              {/* Balance warning if insufficient */}
-              {elementPayCalculation?.selectedToken &&
-                walletBalances.length > 0 &&
-                (() => {
-                  const tokenBalance = walletBalances.find(
-                    (b) =>
-                      b.token.tokenAddress ===
-                      elementPayCalculation.selectedToken?.tokenAddress
-                  );
-                  const hasInsufficientBalance =
-                    tokenBalance &&
-                    elementPayCalculation.tokenAmount > tokenBalance.balance;
-
-                  if (hasInsufficientBalance) {
-                    return (
-                      <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                        <div className="flex items-center space-x-2 text-destructive">
-                          <AlertTriangle className="h-4 w-4" />
-                          <span className="text-sm font-medium">
-                            Insufficient Balance
-                          </span>
-                        </div>
-                        <p className="text-sm text-destructive/80 mt-1">
-                          You need{" "}
-                          {elementPayCalculation.tokenAmount.toFixed(6)}{" "}
-                          {elementPayCalculation.selectedToken?.symbol} but only
-                          have {tokenBalance.balance.toFixed(6)}{" "}
-                          {elementPayCalculation.selectedToken?.symbol}.
-                        </p>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
 
               {/* Confirmation Dialog */}
               {showConfirmDialog && (

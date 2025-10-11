@@ -49,25 +49,25 @@ import type { ElementPayToken } from './types'
 export const FALLBACK_TOKENS: ElementPayToken[] = [
   {
     symbol: "USDT",
-    name: "Tether USD",
     chain: "Lisk",
     chainId: 1135,
     tokenAddress: "0x05D032ac25d322df992303dCa074EE7392C117b9",
     decimals: 6,
-    icon: "/tokens/usdt.svg"
+    icon: "/tokens/usdt.svg",
+    env:"live"
   },
   {
     symbol: "USDC", 
-    name: "USD Coin",
     chain: "Base",
     chainId: 8453,
     tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     decimals: 6,
-    icon: "/tokens/usdc.svg"
+    icon: "/tokens/usdc.svg",
+    env:"live"
   },
   {
     symbol: "USDC",
-    name: "USD Coin", 
+    env:"live", 
     chain: "Scroll",
     chainId: 534352,
     tokenAddress: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
@@ -76,7 +76,7 @@ export const FALLBACK_TOKENS: ElementPayToken[] = [
   },
   {
     symbol: "WXM",
-    name: "WXM Coin",
+    env:"live",
     chain: "Arbitrum", 
     chainId: 42161,
     tokenAddress: "0xB6093B61544572Ab42A0E43AF08aBaFD41bf25A6",

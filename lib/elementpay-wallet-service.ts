@@ -1,9 +1,19 @@
 import { ethers } from 'ethers'
 import { parseUnits, formatUnits, erc20Abi } from 'viem'
 import { writeContract, switchChain, getAccount, getBalance } from '@wagmi/core'
+import { config as wagmiConfig } from './wagmi-config'
 import { ELEMENTPAY_CONFIG, getCachedSupportedTokens, ERROR_MESSAGES } from './elementpay-config'
 import { elementPayEncryption } from './elementpay-encryption'
+import { environmentManager } from './api-config'
 import type { ElementPayToken, ElementPayRate, ElementPayOrderPayload, WalletBalance } from './types'
+import { elementPayApiClient } from './elementpay-api-client'
+
+// Extend Window interface for ethereum
+declare global {
+  interface Window {
+    ethereum?: any
+  }
+}
 
 /**
  * ElementPay Wallet Service
@@ -52,41 +62,95 @@ class ElementPayWalletService {
    */
   async getTokenBalance(userAddress: string, token: ElementPayToken, config?: any): Promise<WalletBalance> {
     try {
-      console.log(`🔍 Getting balance for ${token.symbol} on ${token.chain}:`, {
+      console.log(`🔍 DETAILED: Getting balance for ${token.symbol} on ${token.chain}`)
+      console.log(`📋 Input parameters:`, {
         userAddress,
+        userAddressType: typeof userAddress,
+        userAddressLength: userAddress?.length,
         tokenAddress: token.tokenAddress,
+        tokenAddressType: typeof token.tokenAddress,
+        tokenAddressLength: token.tokenAddress?.length,
         chainId: token.chainId,
-        decimals: token.decimals
+        chainIdType: typeof token.chainId,
+        decimals: token.decimals,
+        decimalsType: typeof token.decimals,
+        configProvided: !!config,
+        configType: typeof config
       })
+
+      // Validate inputs before calling getBalance
+      if (!userAddress || !token.tokenAddress || !token.chainId) {
+        throw new Error(`Invalid parameters: userAddress=${userAddress}, tokenAddress=${token.tokenAddress}, chainId=${token.chainId}`)
+      }
+
+      console.log(`🔧 Calling getBalance with parameters:`)
+      const getBalanceParams = {
+        address: userAddress as `0x${string}`,
+        token: token.tokenAddress as `0x${string}`,
+        chainId: token.chainId as any,
+      }
+      console.log(`📤 getBalance params:`, getBalanceParams)
 
       // Use wagmi's getBalance function with config if provided
-      const balance = config 
-        ? await getBalance(config, {
-            address: userAddress as `0x${string}`,
-            token: token.tokenAddress as `0x${string}`,
-            chainId: token.chainId,
-          })
-        : await getBalance({
-            address: userAddress as `0x${string}`,
-            token: token.tokenAddress as `0x${string}`,
-            chainId: token.chainId,
-          })
-
-      const formattedBalance = formatUnits(balance.value, token.decimals)
-      
-      console.log(`💰 Balance result for ${token.symbol}:`, {
-        rawValue: balance.value.toString(),
-        formattedBalance,
-        decimals: token.decimals
-      })
-      
-      return {
-        token,
-        balance: parseFloat(formattedBalance),
-        formattedBalance: parseFloat(formattedBalance).toFixed(6)
+      let balance
+      try {
+        console.log(`🔧 Using getBalance call`)
+        balance = await getBalance(wagmiConfig, getBalanceParams)
+        
+        console.log(`📥 Raw getBalance response:`, {
+          balance,
+          balanceType: typeof balance,
+          balanceKeys: balance ? Object.keys(balance) : 'null',
+          value: balance?.value,
+          valueType: typeof balance?.value,
+          valueString: balance?.value?.toString(),
+          formatted: balance?.formatted,
+          formattedType: typeof balance?.formatted,
+          symbol: balance?.symbol,
+          decimals: balance?.decimals
+        })
+      } catch (balanceError) {
+        console.error(`❌ getBalance call failed:`, balanceError)
+        throw balanceError
       }
+
+      if (!balance || balance.value === undefined) {
+        throw new Error(`getBalance returned invalid response: ${JSON.stringify(balance)}`)
+      }
+
+      console.log(`🧮 Processing balance value:`)
+      console.log(`📊 Raw value: ${balance.value.toString()} (type: ${typeof balance.value})`)
+      console.log(`📊 Token decimals: ${token.decimals} (type: ${typeof token.decimals})`)
+      
+      const formattedBalance = formatUnits(balance.value, token.decimals)
+      console.log(`📊 formatUnits result: ${formattedBalance} (type: ${typeof formattedBalance})`)
+      
+      const parsedBalance = parseFloat(formattedBalance)
+      console.log(`📊 parseFloat result: ${parsedBalance} (type: ${typeof parsedBalance})`)
+      
+      const finalFormattedBalance = parsedBalance.toFixed(6)
+      console.log(`📊 Final formatted: ${finalFormattedBalance}`)
+      
+      const result = {
+        token,
+        balance: parsedBalance,
+        formattedBalance: finalFormattedBalance
+      }
+      
+      console.log(`✅ Final balance result for ${token.symbol}:`, result)
+      
+      return result
     } catch (error) {
-      console.error(`❌ Failed to get balance for ${token.symbol}:`, error)
+      console.error(`❌ DETAILED ERROR for ${token.symbol}:`, {
+        error,
+        tokenDetails: {
+          symbol: token.symbol,
+          address: token.tokenAddress,
+          chainId: token.chainId,
+          decimals: token.decimals
+        },
+        userAddress
+      })
       return {
         token,
         balance: 0,
@@ -118,12 +182,60 @@ class ElementPayWalletService {
    */
   async switchToTokenNetwork(token: ElementPayToken): Promise<boolean> {
     try {
-      await switchChain({ chainId: token.chainId })
+      // Map token chain to correct wagmi chain ID
+      const chainId = this.mapTokenToChainId(token)
+      await switchChain(wagmiConfig, { chainId: chainId as any })
       return true
     } catch (error) {
       console.error(`Failed to switch to ${token.chain}:`, error)
       throw new Error(ERROR_MESSAGES.NETWORK_SWITCH_REQUIRED)
     }
+  }
+
+  /**
+   * Get the correct chain ID for a token based on current environment
+   */
+  getChainIdForToken(token: ElementPayToken): number {
+    return this.mapTokenToChainId(token)
+  }
+
+  /**
+   * Simple chain mapping for common networks
+   */
+  private mapTokenToChainId(token: ElementPayToken): number {
+    const isTestnet = environmentManager.isSandbox()
+    const chainName = token.chain.toLowerCase()
+
+    // Environment-aware chain mappings
+    const chainMappings = {
+      // Ethereum
+      'ethereum': isTestnet ? 11155111 : 1, // Sepolia : Mainnet
+      'mainnet': 1,
+
+      // Base
+      'base': isTestnet ? 84532 : 8453, // Base Sepolia : Base
+
+      // Arbitrum
+      'arbitrum': isTestnet ? 421614 : 42161, // Arbitrum Sepolia : Arbitrum One
+      'arbitrum one': isTestnet ? 421614 : 42161,
+
+      // Scroll
+      'scroll': isTestnet ? 534351 : 534352, // Scroll Sepolia : Scroll
+
+      // Lisk
+      'lisk': isTestnet ? 4202 : 1135, // Lisk Sepolia : Lisk
+    }
+
+    // Try to match by chain name
+    if (chainMappings[chainName as keyof typeof chainMappings]) {
+      const chainId = chainMappings[chainName as keyof typeof chainMappings]
+      console.log(`🔄 Mapped ${token.chain} (${token.env}) to chain ID: ${chainId} (${isTestnet ? 'testnet' : 'mainnet'})`)
+      return chainId
+    }
+
+    // Fallback: use the token's chainId directly
+    console.warn(`⚠️ Unknown chain "${token.chain}", using token chainId: ${token.chainId}`)
+    return token.chainId
   }
 
   /**
@@ -141,7 +253,7 @@ class ElementPayWalletService {
       const amountInUnits = parseUnits(amount.toString(), token.decimals)
 
       // Execute approval transaction
-      const hash = await writeContract({
+      const hash = await writeContract(wagmiConfig, {
         abi: erc20Abi,
         address: token.tokenAddress as `0x${string}`,
         functionName: 'approve',
@@ -149,8 +261,8 @@ class ElementPayWalletService {
           ELEMENTPAY_CONFIG.getContractAddress() as `0x${string}`,
           amountInUnits
         ],
-        chainId: token.chainId
-      })
+        chainId: token.chainId as any,
+      } as any)
 
       return hash
     } catch (error) {
@@ -176,6 +288,15 @@ class ElementPayWalletService {
       }
 
       // Create encrypted message hash using the detailed method
+      console.log('📝 [WALLET-SERVICE] Creating signed message with:', {
+        cashout_type: ELEMENTPAY_CONFIG.CASHOUT_TYPE,
+        amount_fiat: kesAmount,
+        currency: ELEMENTPAY_CONFIG.CURRENCY,
+        rate: rate.marked_up_rate,
+        phone_number: phoneNumber.substring(0, 8) + '***',
+        expectedTokenAmount: (kesAmount / rate.marked_up_rate) + 0.01
+      })
+
       const messageHash = elementPayEncryption.encryptMessageDetailed({
         cashout_type: ELEMENTPAY_CONFIG.CASHOUT_TYPE,
         amount_fiat: kesAmount,
@@ -213,7 +334,8 @@ class ElementPayWalletService {
   }
 
   /**
-   * Complete off-ramp process (approval + signing)
+   * Simplified off-ramp process - only handles blockchain operations
+   * Expects all validation to be done by the caller (ElementPay Calculator)
    */
   async processOffRamp(
     userAddress: string,
@@ -227,48 +349,56 @@ class ElementPayWalletService {
     signature: string
     orderPayload: ElementPayOrderPayload
   }> {
-    try {
-      // Step 1: Check balance
-      onProgress?.('balance_check', 'Checking wallet balance...')
-      const tokenAmount = kesAmount / rate.marked_up_rate
-      
-      // Debug logging
-      console.log('🔍 Balance check details:', {
-        userAddress,
-        tokenSymbol: token.symbol,
-        tokenAddress: token.tokenAddress,
-        chainId: token.chainId,
-        chain: token.chain,
-        requiredAmount: tokenAmount,
-        kesAmount,
-        rate: rate.marked_up_rate
-      })
-      
-      // Get current balance for detailed error message
-      const currentBalance = await this.getTokenBalance(userAddress, token)
-      
-      console.log('💰 Current balance result:', {
-        tokenSymbol: token.symbol,
-        balance: currentBalance.balance,
-        formattedBalance: currentBalance.formattedBalance,
-        requiredAmount: tokenAmount
-      })
-      
-      if (currentBalance.balance < tokenAmount) {
-        const errorMessage = `Insufficient ${token.symbol} balance. You need ${tokenAmount.toFixed(6)} ${token.symbol} but only have ${currentBalance.balance.toFixed(6)} ${token.symbol}. Please add more ${token.symbol} to your wallet or reduce the amount.`
-        console.error('❌ Insufficient balance:', errorMessage)
-        throw new Error(errorMessage)
-      }
+    console.log('🚀 [WALLET-SERVICE] Starting simplified off-ramp process:', {
+      userAddress,
+      token: token.symbol,
+      kesAmount,
+      phoneNumber: phoneNumber.substring(0, 8) + '***', // Mask phone for privacy
+      rate: rate.marked_up_rate
+    });
 
-      // Step 2: Switch network if needed
+    try {
+      // Calculate token amount - using marked_up_rate only as instructed by backend
+      // Add 0.01 buffer as requested to account for precision differences
+      const tokenAmount = (Number(kesAmount) / (rate.marked_up_rate || 1)).toFixed(token.decimals) 
+      const tokenAmountInUnits = parseUnits(tokenAmount.toString(), token.decimals)
+      console.log('💰 [WALLET-SERVICE] Calculated token amount:', {
+        kesAmount,
+        rate: rate.marked_up_rate,
+        tokenAmount,
+        tokenAmountType: typeof tokenAmount,
+        tokenAmountToString: tokenAmount.toString(),
+        tokenAmountInUnits: tokenAmountInUnits.toString(),
+        tokenAmountInUnitsLength: tokenAmountInUnits.toString().length,
+        tokenSymbol: token.symbol,
+        tokenDecimals: token.decimals,
+        calculation: `${kesAmount} / ${rate.marked_up_rate} + 0.01 = ${tokenAmount}`
+      });
+
+      // Step 1: Switch network if needed
+      console.log('🔄 [WALLET-SERVICE] Step 1: Network switch');
       onProgress?.('network_switch', `Switching to ${token.chain} network...`)
       await this.switchToTokenNetwork(token)
+      console.log('✅ [WALLET-SERVICE] Network switch completed');
 
-      // Step 3: Approve token spending
+      // Step 2: Approve token spending
+      console.log('🔄 [WALLET-SERVICE] Step 2: Token approval');
       onProgress?.('token_approval', 'Requesting token approval...')
-      const approvalHash = await this.approveTokenSpending(token, tokenAmount)
 
-      // Step 4: Sign order message
+      // Debug what we're actually approving
+      const approvalAmountInUnits = parseUnits(tokenAmount.toString(), token.decimals)
+      console.log('🔍 [WALLET-SERVICE] Approval details:', {
+        tokenAmount,
+        tokenDecimals: token.decimals,
+        approvalAmountInUnits: approvalAmountInUnits.toString(),
+        approvalAmountReadable: parseFloat(tokenAmount.toString()).toFixed(6)
+      })
+
+      const approvalHash = await this.approveTokenSpending(token, Number(tokenAmount))
+      console.log('✅ [WALLET-SERVICE] Token approval successful:', approvalHash);
+
+      // Step 3: Sign order message
+      console.log('🔄 [WALLET-SERVICE] Step 3: Message signing');
       onProgress?.('message_signing', 'Requesting message signature...')
       const { signature, orderPayload } = await this.signOrderMessage(
         userAddress,
@@ -277,12 +407,21 @@ class ElementPayWalletService {
         phoneNumber,
         rate
       )
+      console.log('✅ [WALLET-SERVICE] Message signing successful');
 
-      return {
+      const result = {
         approvalHash,
         signature,
         orderPayload
-      }
+      };
+
+      console.log('🎉 [WALLET-SERVICE] Off-ramp process completed successfully:', {
+        approvalHash,
+        signature: signature.substring(0, 10) + '...',
+        hasOrderPayload: !!orderPayload
+      });
+
+      return result;
     } catch (error) {
       console.error('Off-ramp process failed:', error)
       throw error
@@ -294,7 +433,7 @@ class ElementPayWalletService {
    */
   getCurrentAccount(): { address: string; chainId: number } | null {
     try {
-      const account = getAccount()
+      const account = getAccount(wagmiConfig)
       if (account.address && account.chainId) {
         return {
           address: account.address,
@@ -343,4 +482,25 @@ export const elementPayWalletService = new ElementPayWalletService()
 
 // Export for direct usage
 export { ElementPayWalletService }
+
+/**
+ * Simple utility function for chain mapping
+ * Can be used anywhere without instantiating the wallet service
+ */
+export function getChainIdForToken(token: ElementPayToken): number {
+  const isTestnet = environmentManager.isSandbox()
+  const chainName = token.chain.toLowerCase()
+
+  const chainMappings = {
+    'ethereum': isTestnet ? 11155111 : 1,
+    'mainnet': 1,
+    'base': isTestnet ? 84532 : 8453,
+    'arbitrum': isTestnet ? 421614 : 42161,
+    'arbitrum one': isTestnet ? 421614 : 42161,
+    'scroll': isTestnet ? 534351 : 534352,
+    'lisk': isTestnet ? 4202 : 1135,
+  }
+
+  return chainMappings[chainName as keyof typeof chainMappings] || token.chainId
+}
 

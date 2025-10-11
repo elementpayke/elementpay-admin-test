@@ -169,12 +169,13 @@ export type ExchangeRate = {
 // ElementPay specific types
 export type ElementPayToken = {
   symbol: string
-  name: string
+  // name: string
   chain: string
   chainId: number
   tokenAddress: string
   decimals: number
-  icon?: string
+  icon?: string | null
+  env: "live" | "sandbox" | null| any
 }
 
 export type ElementPayRate = {

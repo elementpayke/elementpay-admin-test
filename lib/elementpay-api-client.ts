@@ -46,21 +46,32 @@ class ElementPayApiClient {
     orderPayload: ElementPayOrderPayload,
     signature: string
   ): Promise<ElementPayOrderResponse> {
+    const baseUrl = ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox'
+      ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
+      : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+
+    console.log('🔄 [ELEMENTPAY-API-CLIENT] createOrder method called with:', {
+      orderPayload,
+      signatureLength: signature.length,
+      hasApiKey: !!this.apiKey,
+      apiKeyLength: this.apiKey.length,
+      baseUrl
+    })
+
+    if (!this.apiKey) {
+      console.error('❌ [ELEMENTPAY-API-CLIENT] No API key configured!')
+      throw new Error('ElementPay API key not configured')
+    }
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), VALIDATION.API_TIMEOUT)
-
-      // Use the base URL directly for orders endpoint
-      const baseUrl = ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox' 
-        ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
-        : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
 
       const response = await fetch(`${baseUrl}/orders/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': this.apiKey ? `Bearer ${this.apiKey}` : '',
+          'x-api-key': this.apiKey ? `${this.apiKey}` : '',
           'X-Signature': signature,
         },
         body: JSON.stringify(orderPayload),
@@ -104,7 +115,7 @@ class ElementPayApiClient {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'x-api-key': `${this.apiKey}`,
         },
         signal: controller.signal,
       })
@@ -157,7 +168,7 @@ class ElementPayApiClient {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'x-api-key': `${this.apiKey}`,
         },
         signal: controller.signal,
       })
@@ -202,7 +213,7 @@ class ElementPayApiClient {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'x-api-key': this.apiKey ? `${this.apiKey}` : '',
         },
         signal: controller.signal,
       })

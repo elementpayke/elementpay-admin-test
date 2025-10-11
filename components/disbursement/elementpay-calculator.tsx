@@ -20,6 +20,8 @@ import {
   type ElementPayRate,
 } from "@/lib/elementpay-rate-service";
 import type { ElementPayToken, WalletBalance } from "@/lib/types";
+import { toast } from "sonner";
+import { elementPayTokenService } from "@/lib/elementpay-token-service";
 
 interface ElementPayCalculatorProps {
   onCalculationChange: (calculation: {
@@ -30,21 +32,35 @@ interface ElementPayCalculatorProps {
     isValid: boolean;
     phoneNumber: string;
   }) => void;
+  onProcessPayment?: (paymentData: {
+    selectedToken: ElementPayToken;
+    kesAmount: number;
+    tokenAmount: number;
+    phoneNumber: string;
+    rate: ElementPayRate;
+    walletAddress: string;
+  }) => Promise<void>;
   walletBalances?: WalletBalance[];
   supportedTokens?: ElementPayToken[];
+  walletAddress?: string;
+  isWalletConnected?: boolean;
   className?: string;
 }
 
 export default function ElementPayCalculator({
   onCalculationChange,
+  onProcessPayment,
   walletBalances = [],
-  supportedTokens = [],
+  // supportedTokens = [],
+  walletAddress = "",
+  isWalletConnected = false,
   className = "",
 }: ElementPayCalculatorProps) {
   // Form state
   const [selectedToken, setSelectedToken] = useState<ElementPayToken | null>(
     null
   );
+  const [availableTokens, setAvailableTokens] = useState<ElementPayToken[]>([]);
   const [kesAmount, setKesAmount] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
 
@@ -56,6 +72,10 @@ export default function ElementPayCalculator({
   // Calculated values
   const [tokenAmount, setTokenAmount] = useState<number>(0);
   const [isValidCalculation, setIsValidCalculation] = useState(false);
+
+  // Processing state
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState<string>("");
 
   // Validation functions
   const validatePhoneNumber = (phone: string): boolean => {
@@ -71,6 +91,17 @@ export default function ElementPayCalculator({
     );
   };
 
+  const fetchAvailableTokens = useCallback(async () => {
+    // console.log("🔄 Fetching available tokens");
+    const tokens = await elementPayTokenService.fetchSupportedTokens();
+    // console.log("🔄 Fetching available tokens:", tokens);
+    setAvailableTokens(tokens);
+  }, []);
+
+  useEffect(() => {
+    fetchAvailableTokens();
+  }, [fetchAvailableTokens]);
+
   const formatPhoneNumber = (phone: string): string => {
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.startsWith("254")) {
@@ -85,7 +116,7 @@ export default function ElementPayCalculator({
   const fetchRate = useCallback(async (token: ElementPayToken) => {
     if (!token) return;
 
-    console.log(`🔄 Fetching rate for token: ${token.symbol}`);
+    // console.log(`🔄 Fetching rate for token: ${token.symbol}`);
     setIsLoadingRate(true);
     setRateError(null);
 
@@ -94,13 +125,14 @@ export default function ElementPayCalculator({
         token.symbol as keyof typeof import("@/lib/elementpay-config").CURRENCY_MAP
       );
 
-      console.log(`✅ Rate fetched for ${token.symbol}:`, rate);
+      // console.log(`✅ Rate fetched for ${token.symbol}:`, rate);
 
       if (rate && elementPayRateService.validateRate(rate)) {
         setCurrentRate(rate);
         setRateError(null);
-        console.log(`✅ Rate set successfully for ${token.symbol}`);
+        // console.log(`✅ Rate set successfully for ${token.symbol}`);
       } else {
+        console.error("Imefail : ", rate);
         throw new Error("Invalid rate data received");
       }
     } catch (error) {
@@ -116,10 +148,16 @@ export default function ElementPayCalculator({
   useEffect(() => {
     if (kesAmount && currentRate && validateAmount(kesAmount)) {
       try {
-        const calculatedAmount = elementPayRateService.calculateTokenAmount(
-          parseFloat(kesAmount),
-          currentRate
-        );
+        // Use marked_up_rate only for calculation as instructed by backend
+        // Add 0.01 buffer to account for precision differences
+        const kesValue = parseFloat(kesAmount);
+        const calculatedAmount = kesValue / currentRate.marked_up_rate + 0.01;
+        console.log("🧮 [CALCULATOR] Token amount calculation:", {
+          kesAmount: kesValue,
+          markedUpRate: currentRate.marked_up_rate,
+          calculatedAmount,
+          calculation: `${kesValue} / ${currentRate.marked_up_rate} + 0.01 = ${calculatedAmount}`,
+        });
         setTokenAmount(calculatedAmount);
       } catch (error) {
         console.error("Calculation error:", error);
@@ -130,29 +168,84 @@ export default function ElementPayCalculator({
     }
   }, [kesAmount, currentRate]);
 
+  // Get wallet balance for selected token
+  const getTokenBalance = (): WalletBalance | null => {
+    // console.log("🔍 [CALCULATOR] Getting token balance:", {
+    //   selectedToken: selectedToken?.symbol,
+    //   tokenAddress: selectedToken?.tokenAddress,
+    //   availableBalances: walletBalances.length,
+    //   walletConnected: isWalletConnected,
+    //   walletAddress: walletAddress,
+    // });
+
+    if (!selectedToken) {
+      // console.log("⚠️ [CALCULATOR] No token selected for balance check");
+      return null;
+    }
+
+    const balance =
+      walletBalances.find(
+        (b) => b.token.tokenAddress === selectedToken.tokenAddress
+      ) || null;
+
+    // console.log("💰 [CALCULATOR] Balance result:", {
+    //   found: !!balance,
+    //   balance: balance?.balance,
+    //   formattedBalance: balance?.formattedBalance,
+    //   tokenSymbol: balance?.token.symbol,
+    // });
+
+    return balance;
+  };
+
+  // Get token balance and check sufficiency
+  const tokenBalance = getTokenBalance();
+  const hasInsufficientBalance =
+    tokenBalance && tokenAmount > tokenBalance.balance;
+
   // Validate form and update parent
   useEffect(() => {
-    const isValid = !!(
-      selectedToken &&
-      validatePhoneNumber(phoneNumber) &&
-      validateAmount(kesAmount) &&
-      currentRate &&
-      tokenAmount > 0 &&
-      !isLoadingRate &&
-      !rateError
-    );
+    const validationChecks = {
+      hasToken: !!selectedToken,
+      validPhone: validatePhoneNumber(phoneNumber),
+      validAmount: validateAmount(kesAmount),
+      hasRate: !!currentRate,
+      hasTokenAmount: tokenAmount > 0,
+      notLoadingRate: !isLoadingRate,
+      noRateError: !rateError,
+      walletConnected: isWalletConnected,
+      hasSufficientBalance: !hasInsufficientBalance,
+    };
+
+    const isValid = Object.values(validationChecks).every(Boolean);
+
+    // console.log("🔍 [CALCULATOR] Validation check:", {
+    //   ...validationChecks,
+    //   isValid,
+    //   kesAmount: parseFloat(kesAmount) || 0,
+    //   tokenAmount,
+    //   phoneNumber: phoneNumber ? formatPhoneNumber(phoneNumber) : "",
+    //   selectedToken: selectedToken?.symbol,
+    //   rate: currentRate?.marked_up_rate,
+    // });
 
     setIsValidCalculation(isValid);
 
     // Notify parent of changes
-    onCalculationChange({
+    const calculationData = {
       selectedToken,
       kesAmount: parseFloat(kesAmount) || 0,
       tokenAmount,
       rate: currentRate,
       isValid,
       phoneNumber: formatPhoneNumber(phoneNumber),
-    });
+    };
+
+    console.log(
+      "📤 [CALCULATOR] Sending calculation data to parent:",
+      calculationData
+    );
+    onCalculationChange(calculationData);
   }, [
     selectedToken,
     kesAmount,
@@ -161,17 +254,30 @@ export default function ElementPayCalculator({
     tokenAmount,
     isLoadingRate,
     rateError,
+    isWalletConnected,
+    hasInsufficientBalance,
     onCalculationChange,
   ]);
 
   // Handle token selection
   const handleTokenSelect = (tokenAddress: string) => {
-    const token = supportedTokens.find((t) => t.tokenAddress === tokenAddress);
+    // console.log("🔄 [CALCULATOR] Token selection initiated:", { tokenAddress });
+
+    const token = availableTokens.find((t) => t.tokenAddress === tokenAddress);
     if (token) {
+      // console.log("✅ [CALCULATOR] Token found:", {
+      //   symbol: token.symbol,
+      //   chain: token.chain,
+      //   address: token.tokenAddress,
+      //   decimals: token.decimals,
+      // });
+
       setSelectedToken(token);
       setCurrentRate(null);
       setTokenAmount(0);
       fetchRate(token);
+    } else {
+      console.warn("❌ [CALCULATOR] Token not found in supported tokens list");
     }
   };
 
@@ -182,19 +288,64 @@ export default function ElementPayCalculator({
     }
   };
 
-  // Get wallet balance for selected token
-  const getTokenBalance = (): WalletBalance | null => {
-    if (!selectedToken) return null;
-    return (
-      walletBalances.find(
-        (b) => b.token.tokenAddress === selectedToken.tokenAddress
-      ) || null
-    );
-  };
+  // Handle payment processing
+  const handleProcessPayment = async () => {
+    if (!selectedToken || !currentRate || !walletAddress || !onProcessPayment) {
+      console.error(
+        "❌ [CALCULATOR] Cannot process payment - missing required data:",
+        {
+          hasToken: !!selectedToken,
+          hasRate: !!currentRate,
+          hasWalletAddress: !!walletAddress,
+          hasProcessHandler: !!onProcessPayment,
+        }
+      );
+      return;
+    }
 
-  const tokenBalance = getTokenBalance();
-  const hasInsufficientBalance =
-    tokenBalance && tokenAmount > tokenBalance.balance;
+    console.log("🚀 [CALCULATOR] Starting payment process:", {
+      token: selectedToken.symbol,
+      kesAmount: parseFloat(kesAmount),
+      tokenAmount,
+      phoneNumber: formatPhoneNumber(phoneNumber),
+      walletAddress,
+      rate: currentRate.marked_up_rate,
+    });
+
+    setIsProcessing(true);
+    setProcessingStep("Initiating payment...");
+
+    try {
+      await onProcessPayment({
+        selectedToken,
+        kesAmount: parseFloat(kesAmount),
+        tokenAmount,
+        phoneNumber: formatPhoneNumber(phoneNumber),
+        rate: currentRate,
+        walletAddress,
+      });
+
+      console.log("✅ [CALCULATOR] Payment processing completed successfully");
+      toast.success("Payment processed successfully!");
+
+      // Reset form after successful payment
+      setSelectedToken(null);
+      setKesAmount("");
+      setPhoneNumber("");
+      setCurrentRate(null);
+      setTokenAmount(0);
+    } catch (error) {
+      console.error("❌ [CALCULATOR] Payment processing failed:", error);
+      toast.error(
+        `Payment failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsProcessing(false);
+      setProcessingStep("");
+    }
+  };
 
   return (
     <Card className={className}>
@@ -214,7 +365,7 @@ export default function ElementPayCalculator({
             onChange={(e) => handleTokenSelect(e.target.value)}
           >
             <option>Choose a token to convert</option>
-            {supportedTokens.map((token) => (
+            {availableTokens.map((token) => (
               <option key={token.tokenAddress} value={token.tokenAddress}>
                 <div className="flex items-center space-x-2">
                   <span className="font-medium">{token.symbol}</span>
@@ -364,21 +515,58 @@ export default function ElementPayCalculator({
           </div>
         )}
 
-        {/* Validation Status */}
+        {/* Validation Status & Process Button */}
         {selectedToken && kesAmount && phoneNumber && (
-          <div className="flex items-center space-x-2 text-sm">
-            {isValidCalculation ? (
-              <>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-green-600">Ready to process</span>
-              </>
-            ) : (
-              <>
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-                <span className="text-orange-500">
-                  Please complete all fields
-                </span>
-              </>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2 text-sm">
+              {isValidCalculation && !hasInsufficientBalance ? (
+                <>
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-green-600">Ready to process</span>
+                </>
+              ) : hasInsufficientBalance ? (
+                <>
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <span className="text-red-500">Insufficient balance</span>
+                </>
+              ) : !isWalletConnected ? (
+                <>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  <span className="text-orange-500">Please connect wallet</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  <span className="text-orange-500">
+                    Please complete all fields
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Process Payment Button */}
+            {isWalletConnected && (
+              <Button
+                onClick={handleProcessPayment}
+                disabled={
+                  !isValidCalculation || hasInsufficientBalance || isProcessing
+                }
+                className="w-full"
+                size="lg"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    {processingStep || "Processing..."}
+                  </>
+                ) : (
+                  `Process Payment: ${
+                    kesAmount
+                      ? `KES ${parseFloat(kesAmount).toLocaleString()}`
+                      : "KES 0"
+                  }`
+                )}
+              </Button>
             )}
           </div>
         )}
