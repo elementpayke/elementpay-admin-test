@@ -1,17 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle } from "lucide-react";
 import { ELEMENTPAY_CONFIG, ERROR_MESSAGES } from "@/lib/elementpay-config";
@@ -22,6 +16,10 @@ import {
 import type { ElementPayToken, WalletBalance } from "@/lib/types";
 import { toast } from "sonner";
 import { elementPayTokenService } from "@/lib/elementpay-token-service";
+import { erc20Abi, parseUnits } from "viem";
+import { useWriteContract, usePublicClient } from "wagmi";
+import { ethers } from "ethers";
+import { elementPayApiClient } from "@/lib/elementpay-api-client";
 
 interface ElementPayCalculatorProps {
   onCalculationChange: (calculation: {
@@ -32,14 +30,6 @@ interface ElementPayCalculatorProps {
     isValid: boolean;
     phoneNumber: string;
   }) => void;
-  onProcessPayment?: (paymentData: {
-    selectedToken: ElementPayToken;
-    kesAmount: number;
-    tokenAmount: number;
-    phoneNumber: string;
-    rate: ElementPayRate;
-    walletAddress: string;
-  }) => Promise<void>;
   walletBalances?: WalletBalance[];
   supportedTokens?: ElementPayToken[];
   walletAddress?: string;
@@ -49,9 +39,7 @@ interface ElementPayCalculatorProps {
 
 export default function ElementPayCalculator({
   onCalculationChange,
-  onProcessPayment,
   walletBalances = [],
-  // supportedTokens = [],
   walletAddress = "",
   isWalletConnected = false,
   className = "",
@@ -73,9 +61,8 @@ export default function ElementPayCalculator({
   const [tokenAmount, setTokenAmount] = useState<number>(0);
   const [isValidCalculation, setIsValidCalculation] = useState(false);
 
-  // Processing state
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStep, setProcessingStep] = useState<string>("");
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
 
   // Validation functions
   const validatePhoneNumber = (phone: string): boolean => {
@@ -151,12 +138,10 @@ export default function ElementPayCalculator({
         // Use marked_up_rate only for calculation as instructed by backend
         // Add 0.01 buffer to account for precision differences
         const kesValue = parseFloat(kesAmount);
-        const calculatedAmount = kesValue / currentRate.marked_up_rate + 0.01;
-        console.log("🧮 [CALCULATOR] Token amount calculation:", {
+        const calculatedAmount = kesValue / currentRate.marked_up_rate;
+        console.log("Maarkup details:", {
           kesAmount: kesValue,
           markedUpRate: currentRate.marked_up_rate,
-          calculatedAmount,
-          calculation: `${kesValue} / ${currentRate.marked_up_rate} + 0.01 = ${calculatedAmount}`,
         });
         setTokenAmount(calculatedAmount);
       } catch (error) {
@@ -170,31 +155,14 @@ export default function ElementPayCalculator({
 
   // Get wallet balance for selected token
   const getTokenBalance = (): WalletBalance | null => {
-    // console.log("🔍 [CALCULATOR] Getting token balance:", {
-    //   selectedToken: selectedToken?.symbol,
-    //   tokenAddress: selectedToken?.tokenAddress,
-    //   availableBalances: walletBalances.length,
-    //   walletConnected: isWalletConnected,
-    //   walletAddress: walletAddress,
-    // });
-
     if (!selectedToken) {
       // console.log("⚠️ [CALCULATOR] No token selected for balance check");
       return null;
     }
-
     const balance =
       walletBalances.find(
         (b) => b.token.tokenAddress === selectedToken.tokenAddress
       ) || null;
-
-    // console.log("💰 [CALCULATOR] Balance result:", {
-    //   found: !!balance,
-    //   balance: balance?.balance,
-    //   formattedBalance: balance?.formattedBalance,
-    //   tokenSymbol: balance?.token.symbol,
-    // });
-
     return balance;
   };
 
@@ -219,16 +187,6 @@ export default function ElementPayCalculator({
 
     const isValid = Object.values(validationChecks).every(Boolean);
 
-    // console.log("🔍 [CALCULATOR] Validation check:", {
-    //   ...validationChecks,
-    //   isValid,
-    //   kesAmount: parseFloat(kesAmount) || 0,
-    //   tokenAmount,
-    //   phoneNumber: phoneNumber ? formatPhoneNumber(phoneNumber) : "",
-    //   selectedToken: selectedToken?.symbol,
-    //   rate: currentRate?.marked_up_rate,
-    // });
-
     setIsValidCalculation(isValid);
 
     // Notify parent of changes
@@ -241,11 +199,7 @@ export default function ElementPayCalculator({
       phoneNumber: formatPhoneNumber(phoneNumber),
     };
 
-    console.log(
-      "📤 [CALCULATOR] Sending calculation data to parent:",
-      calculationData
-    );
-    onCalculationChange(calculationData);
+    // onCalculationChange(calculationData);
   }, [
     selectedToken,
     kesAmount,
@@ -256,22 +210,13 @@ export default function ElementPayCalculator({
     rateError,
     isWalletConnected,
     hasInsufficientBalance,
-    onCalculationChange,
+    // onCalculationChange,
   ]);
 
   // Handle token selection
   const handleTokenSelect = (tokenAddress: string) => {
-    // console.log("🔄 [CALCULATOR] Token selection initiated:", { tokenAddress });
-
     const token = availableTokens.find((t) => t.tokenAddress === tokenAddress);
     if (token) {
-      // console.log("✅ [CALCULATOR] Token found:", {
-      //   symbol: token.symbol,
-      //   chain: token.chain,
-      //   address: token.tokenAddress,
-      //   decimals: token.decimals,
-      // });
-
       setSelectedToken(token);
       setCurrentRate(null);
       setTokenAmount(0);
@@ -288,62 +233,74 @@ export default function ElementPayCalculator({
     }
   };
 
-  // Handle payment processing
   const handleProcessPayment = async () => {
-    if (!selectedToken || !currentRate || !walletAddress || !onProcessPayment) {
-      console.error(
-        "❌ [CALCULATOR] Cannot process payment - missing required data:",
-        {
-          hasToken: !!selectedToken,
-          hasRate: !!currentRate,
-          hasWalletAddress: !!walletAddress,
-          hasProcessHandler: !!onProcessPayment,
-        }
-      );
-      return;
-    }
+    console.log("Processing payment...");
+    console.log("Selected token:", selectedToken);
+    console.log("KES amount:", kesAmount);
+    console.log("Phone number:", phoneNumber);
+    console.log("Token amount:", tokenAmount);
+    console.log("Rate:", currentRate);
+    console.log("Is wallet connected:", isWalletConnected);
+    console.log("Is valid calculation:", isValidCalculation);
 
-    console.log("🚀 [CALCULATOR] Starting payment process:", {
-      token: selectedToken.symbol,
-      kesAmount: parseFloat(kesAmount),
-      tokenAmount,
-      phoneNumber: formatPhoneNumber(phoneNumber),
-      walletAddress,
-      rate: currentRate.marked_up_rate,
+    const baseUrl =
+      ELEMENTPAY_CONFIG.getCurrentEnvironment() === "sandbox"
+        ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE ||
+          "https://sandbox.elementpay.net/api/v1"
+        : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE ||
+          "https://api.elementpay.net/api/v1";
+
+    const approveAmount =(Number(kesAmount) / (currentRate?.marked_up_rate || 1)).toString();
+
+    const approvalAmount = parseUnits(
+      approveAmount,
+      selectedToken?.decimals || 0
+    );
+
+    const spender = ELEMENTPAY_CONFIG.getContractAddress();
+
+    const approvalHash = await writeContractAsync({
+      address: selectedToken?.tokenAddress as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "approve",
+      args: [spender as `0x${string}`, approvalAmount],
+      chain: selectedToken?.chain as any,
+      account: walletAddress as `0x${string}`,
     });
 
-    setIsProcessing(true);
-    setProcessingStep("Initiating payment...");
+    await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
+
+    const orderDetails = {
+      user_address: walletAddress,
+      token: selectedToken?.tokenAddress as `0x${string}`,
+      order_type: 1 as const,
+      fiat_payload: {
+        amount_fiat: Number(kesAmount),
+        cashout_type: "PHONE" as const,
+        phone_number: phoneNumber,
+        currency: "KES" as const,
+      },
+    };
+
+    let _signature;
 
     try {
-      await onProcessPayment({
-        selectedToken,
-        kesAmount: parseFloat(kesAmount),
-        tokenAmount,
-        phoneNumber: formatPhoneNumber(phoneNumber),
-        rate: currentRate,
-        walletAddress,
-      });
+      if (!window.ethereum) throw new Error("Wallet not found");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const message = JSON.stringify(orderDetails);
+      _signature = await signer.signMessage(message);
 
-      console.log("✅ [CALCULATOR] Payment processing completed successfully");
-      toast.success("Payment processed successfully!");
-
-      // Reset form after successful payment
-      setSelectedToken(null);
-      setKesAmount("");
-      setPhoneNumber("");
-      setCurrentRate(null);
-      setTokenAmount(0);
-    } catch (error) {
-      console.error("❌ [CALCULATOR] Payment processing failed:", error);
-      toast.error(
-        `Payment failed: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
+      // Create order only after successful signature
+      const order = await elementPayApiClient.createOrder(
+        orderDetails,
+        _signature
       );
-    } finally {
-      setIsProcessing(false);
-      setProcessingStep("");
+      console.log("✅ Order created successfully:", { orderId: order.id });
+    } catch (signError) {
+      console.error("❌ Signature rejected or failed:", signError);
+      toast.error("Signature rejected or failed. Please try again.");
+      return;
     }
   };
 
@@ -548,24 +505,15 @@ export default function ElementPayCalculator({
             {isWalletConnected && (
               <Button
                 onClick={handleProcessPayment}
-                disabled={
-                  !isValidCalculation || hasInsufficientBalance || isProcessing
-                }
+                disabled={!isValidCalculation || hasInsufficientBalance}
                 className="w-full"
                 size="lg"
               >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    {processingStep || "Processing..."}
-                  </>
-                ) : (
-                  `Process Payment: ${
-                    kesAmount
-                      ? `KES ${parseFloat(kesAmount).toLocaleString()}`
-                      : "KES 0"
-                  }`
-                )}
+                {`Process Payment: ${
+                  kesAmount
+                    ? `KES ${parseFloat(kesAmount).toLocaleString()}`
+                    : "KES 0"
+                }`}
               </Button>
             )}
           </div>

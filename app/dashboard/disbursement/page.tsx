@@ -1,12 +1,25 @@
 ﻿"use client";
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import AuthGuard from "@/components/auth/auth-guard";
 import DashboardLayout from "@/components/dashboard/dashboard-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { useDisbursement } from "@/hooks/use-disbursement";
 import { useEnvironment } from "@/hooks/use-environment";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  createElementPayOrder,
+  type PaymentInput,
+} from "@/lib/elementpay-payment-processor";
+import { elementPayRateService } from "@/lib/elementpay-rate-service";
+import { ELEMENTPAY_CONFIG } from "@/lib/elementpay-config";
+import { parseUnits, erc20Abi } from "viem";
+import {
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useSignMessage,
+  useSwitchChain,
+} from "wagmi";
 import WalletConnection from "@/components/dashboard/wallet-connection";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -46,8 +59,18 @@ interface PaymentSummary {
 type PaymentMode = "single" | "bulk";
 
 export default function DisbursementPage() {
-  const { user } = useAuth();
+  const { user, elementPayToken } = useAuth();
   const { toast } = useToast();
+
+  // Initialize API client with auth token when user is authenticated
+  React.useEffect(() => {
+    const { elementPayApiClient } = require("@/lib/elementpay-api-client");
+    if (elementPayToken) {
+      elementPayApiClient.setUserAuthToken(elementPayToken);
+    } else {
+      elementPayApiClient.clearUserAuthToken();
+    }
+  }, [elementPayToken]);
 
   // Use actual API data
   const {
@@ -95,6 +118,31 @@ export default function DisbursementPage() {
   const [paymentProgress, setPaymentProgress] =
     useState<PaymentProgress | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [currentPaymentConfig, setCurrentPaymentConfig] = useState<any>(null);
+
+  // Wagmi hooks for blockchain interactions
+  const { switchChainAsync } = useSwitchChain();
+  const { writeContract, data: approvalHash } = useWriteContract();
+  const { isSuccess: approvalSuccess } = useWaitForTransactionReceipt({
+    hash: approvalHash,
+  });
+  const { signMessageAsync, data: signature } = useSignMessage();
+
+  // Handle approval completion
+  React.useEffect(() => {
+    if (approvalSuccess && currentPaymentConfig && isProcessingPayment) {
+      console.log("✅ Token approval completed, proceeding to signing...");
+      handleMessageSigning();
+    }
+  }, [approvalSuccess, currentPaymentConfig, isProcessingPayment]);
+
+  // Handle signature completion
+  React.useEffect(() => {
+    if (signature && currentPaymentConfig && isProcessingPayment) {
+      console.log("✅ Message signed, creating order...");
+      handleOrderCreation();
+    }
+  }, [signature, currentPaymentConfig, isProcessingPayment]);
 
   // ElementPay state
   const [elementPayCalculation, setElementPayCalculation] = useState<{
@@ -142,51 +190,6 @@ export default function DisbursementPage() {
     return !isNaN(num) && num > 0 && num <= 1000000; // Max 1M KES
   };
 
-  // Format phone number
-  const formatPhoneNumber = (phone: string): string => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.startsWith("254")) {
-      return `+${cleaned}`;
-    } else if (cleaned.startsWith("0")) {
-      return `+254${cleaned.substring(1)}`;
-    }
-    return phone;
-  };
-
-  // Calculate payment summary
-  const getPaymentSummary = (): PaymentSummary => {
-    // Use ElementPay calculation if available
-    if (elementPayCalculation?.isValid) {
-      return {
-        totalRecipients: 1,
-        totalAmount: elementPayCalculation.kesAmount,
-        currency: "KES",
-      };
-    }
-
-    // Fallback to legacy calculation
-    if (paymentMode === "single") {
-      return {
-        totalRecipients:
-          singlePayment.phoneNumber && singlePayment.amount ? 1 : 0,
-        totalAmount: parseFloat(singlePayment.amount) || 0,
-        currency: "KES",
-      };
-    } else {
-      const validPayments = bulkPayments.filter(
-        (p) => validatePhoneNumber(p.phoneNumber) && validateAmount(p.amount)
-      );
-      return {
-        totalRecipients: validPayments.length,
-        totalAmount: validPayments.reduce(
-          (sum, p) => sum + parseFloat(p.amount),
-          0
-        ),
-        currency: "KES",
-      };
-    }
-  };
-
   // Validate form
   const isFormValid = (): boolean => {
     if (!isWalletConnected) return false;
@@ -212,158 +215,218 @@ export default function DisbursementPage() {
     }
   };
 
-  // Process ElementPay payment using the proper hook flow
-  const processElementPayPayment = async (paymentData: {
-    selectedToken: ElementPayToken;
-    kesAmount: number;
-    tokenAmount: number;
-    phoneNumber: string;
-    rate: ElementPayRate;
-    walletAddress: string;
-  }) => {
-    console.log(
-      "🚀 [DISBURSEMENT-PAGE] Processing ElementPay payment via hook:",
-      {
-        token: paymentData.selectedToken.symbol,
-        kesAmount: paymentData.kesAmount,
-        tokenAmount: paymentData.tokenAmount,
-        phoneNumber: paymentData.phoneNumber.substring(0, 8) + "***",
-        walletAddress: paymentData.walletAddress,
-      }
-    );
-
-    setIsProcessingPayment(true);
-    setPaymentProgress({
-      step: "blockchain_processing",
-      message: "Processing your payment request...",
-    });
-
-    try {
-      // Use the proper hook function that includes API order creation
-      const result = await processElementPayOffRamp(
-        paymentData.walletAddress,
-        paymentData.selectedToken,
-        paymentData.kesAmount,
-        paymentData.phoneNumber,
-        (step: string, message: string) => {
-          console.log(`🔄 [DISBURSEMENT-PAGE] Progress: ${step} - ${message}`);
-          // Map steps to valid PaymentProgress steps
-          const validStep =
-            step === "network_switch" ||
-            step === "token_approval" ||
-            step === "message_signing"
-              ? "blockchain_processing"
-              : step === "rate_fetch"
-              ? "blockchain_processing"
-              : step === "order_creation"
-              ? "completed"
-              : (step as PaymentProgress["step"]);
-          setPaymentProgress({ step: validStep, message });
-        },
-        paymentData.rate // Pass the rate directly
-      );
-
-      console.log("✅ [DISBURSEMENT-PAGE] Full payment flow completed:", {
-        orderId: result.orderId,
-        approvalHash: result.approvalHash,
-        hasSignature: !!result.signature,
-        hasOrder: !!result.order,
-      });
-
-      setPaymentProgress({
-        step: "completed",
-        message: `Successfully processed KES ${paymentData.kesAmount.toLocaleString()} payment`,
-      });
-
-      // Don't show duplicate success toast since the hook already shows it
-    } catch (error) {
-      console.error("❌ [DISBURSEMENT-PAGE] ElementPay payment failed:", error);
-
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Payment processing failed. Please try again.";
-
-      setPaymentProgress({
-        step: "failed",
-        message: errorMessage,
-      });
-
-      // Don't show duplicate error toast since the hook already shows it
-      throw error; // Re-throw so calculator can handle it
-    } finally {
-      setIsProcessingPayment(false);
-      setTimeout(() => setPaymentProgress(null), 5000);
-    }
-  };
-
   // Legacy process payments (for backward compatibility)
+  // Process ElementPay payments - REAL blockchain transactions
   const processPayments = async () => {
     if (elementPayCalculation?.isValid && walletAddress) {
-      // Convert elementPayCalculation to the new format
-      return processElementPayPayment({
-        selectedToken: elementPayCalculation.selectedToken!,
-        kesAmount: elementPayCalculation.kesAmount,
-        tokenAmount: elementPayCalculation.tokenAmount,
-        phoneNumber: elementPayCalculation.phoneNumber,
-        rate: elementPayCalculation.rate!,
-        walletAddress,
-      });
-    }
-
-    // Fallback to legacy processing
-    if (!isFormValid()) return;
-
-    setIsProcessingPayment(true);
-    setPaymentProgress({
-      step: "blockchain_processing",
-      message: "Processing your payment request...",
-    });
-
-    try {
-      const summary = getPaymentSummary();
-
-      // Mock processing delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
+      setIsProcessingPayment(true);
       setPaymentProgress({
-        step: "completed",
-        message: `Successfully processed ${
-          summary.totalRecipients
-        } payment(s) totaling KES ${summary.totalAmount.toLocaleString()}`,
+        step: "blockchain_processing",
+        message: "Preparing payment...",
       });
 
-      toast({
-        title: "Payments Processed",
-        description: `${summary.totalRecipients} payment(s) sent successfully`,
-      });
+      try {
+        const paymentInput = {
+          selectedToken: elementPayCalculation.selectedToken!,
+          kesAmount: elementPayCalculation.kesAmount,
+          tokenAmount: elementPayCalculation.tokenAmount,
+          phoneNumber: elementPayCalculation.phoneNumber,
+          walletAddress,
+          rate: elementPayCalculation.rate,
+        };
 
-      // Reset form
-      if (paymentMode === "single") {
-        setSinglePayment({ phoneNumber: "", amount: "" });
-      } else {
-        setBulkPayments([]);
-        setUploadedFile(null);
+        // Get rate if not available
+        let rate = elementPayCalculation.rate;
+        if (!rate) {
+          setPaymentProgress({
+            step: "blockchain_processing",
+            message: "Fetching exchange rate...",
+          });
+          rate = await elementPayRateService.fetchRate(
+            elementPayCalculation.selectedToken!.symbol
+          );
+          if (!rate) throw new Error("Failed to fetch exchange rate");
+        }
+
+        // Create order payload and message for signing
+        const orderPayload = {
+          user_address: paymentInput.walletAddress,
+          token: paymentInput.selectedToken.tokenAddress, // Use contract address
+          order_type: 1 as const, // OffRamp
+          fiat_payload: {
+            amount_fiat: paymentInput.kesAmount,
+            cashout_type: "PHONE" as const,
+            phone_number: paymentInput.phoneNumber,
+            currency: "KES" as const,
+          },
+        };
+
+        const message = `ElementPay Off-Ramp Order
+User: ${paymentInput.walletAddress}
+Token: ${paymentInput.selectedToken.symbol}
+Amount: ${paymentInput.kesAmount} KES
+Phone: ${paymentInput.phoneNumber}
+Rate: ${rate.marked_up_rate}
+Timestamp: ${Date.now()}`;
+
+        setCurrentPaymentConfig({ orderPayload, message });
+
+        // Step 1: Switch network if needed
+        setPaymentProgress({
+          step: "blockchain_processing",
+          message: `Switching to ${
+            elementPayCalculation.selectedToken!.chain
+          } network...`,
+        });
+
+        try {
+          await switchChainAsync({
+            chainId: elementPayCalculation.selectedToken!.chainId,
+          });
+          console.log("✅ Network switched successfully");
+        } catch (networkError) {
+          console.warn(
+            "Network switch failed or already on correct network:",
+            networkError
+          );
+        }
+
+        // Step 2: Start token approval
+        await startTokenApproval({ orderPayload, message });
+      } catch (error) {
+        console.error(
+          "❌ [DISBURSEMENT-PAGE] Payment preparation failed:",
+          error
+        );
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Payment processing failed. Please try again.";
+        setPaymentProgress({
+          step: "failed",
+          message: errorMessage,
+        });
+        setIsProcessingPayment(false);
+        setCurrentPaymentConfig(null);
+        throw error;
       }
-
-      setShowConfirmDialog(false);
-    } catch (error) {
-      setPaymentProgress({
-        step: "failed",
-        message: "Payment processing failed. Please try again.",
-      });
-
-      toast({
-        title: "Payment Failed",
-        description: "There was an error processing your payments",
-      });
-    } finally {
-      setIsProcessingPayment(false);
-      setTimeout(() => setPaymentProgress(null), 5000);
     }
   };
 
-  const summary = getPaymentSummary();
+  // Start token approval process
+  const startTokenApproval = async (walletConfig: any) => {
+    setPaymentProgress({
+      step: "blockchain_processing",
+      message: "Approving token spending...",
+    });
+
+    // Create approval config with correct contract address
+    const contractAddress = ELEMENTPAY_CONFIG.getContractAddress();
+    const approvalAmount = parseUnits(
+      elementPayCalculation!.tokenAmount.toString(),
+      elementPayCalculation!.selectedToken!.decimals
+    );
+
+    const approvalConfig = {
+      abi: erc20Abi,
+      address: elementPayCalculation!.selectedToken!
+        .tokenAddress as `0x${string}`,
+      functionName: "approve" as const,
+      args: [contractAddress as `0x${string}`, approvalAmount],
+    };
+
+    console.log("🔧 Approving token spending:", {
+      token: elementPayCalculation!.selectedToken!.symbol,
+      amount: elementPayCalculation!.tokenAmount,
+      contractAddress,
+      approvalAmount: approvalAmount.toString(),
+      environment: ELEMENTPAY_CONFIG.getCurrentEnvironment(),
+    });
+
+    try {
+      // Execute approval - this will trigger the approval hash
+      await writeContract({
+        ...approvalConfig,
+        account: walletAddress as `0x${string}`,
+      } as any);
+    } catch (error) {
+      console.error("❌ Approval transaction failed:", error);
+      setPaymentProgress({
+        step: "failed",
+        message: "Token approval failed",
+      });
+      setIsProcessingPayment(false);
+      setCurrentPaymentConfig(null);
+      throw new Error("Token approval failed");
+    }
+  };
+
+  // Handle message signing after approval
+  const handleMessageSigning = async () => {
+    if (!currentPaymentConfig) return;
+
+    setPaymentProgress({
+      step: "blockchain_processing",
+      message: "Approval confirmed, signing message...",
+    });
+
+    try {
+      await signMessageAsync({
+        account: walletAddress as `0x${string}`,
+        message: currentPaymentConfig.message,
+      });
+    } catch (error) {
+      console.error("❌ Message signing failed:", error);
+      setPaymentProgress({
+        step: "failed",
+        message: "Message signing failed",
+      });
+      setIsProcessingPayment(false);
+      setCurrentPaymentConfig(null);
+    }
+  };
+
+  // Handle order creation after signing
+  const handleOrderCreation = async () => {
+    if (!currentPaymentConfig || !signature) return;
+
+    setPaymentProgress({
+      step: "blockchain_processing",
+      message: "Creating payment order...",
+    });
+
+    try {
+      const result = await createElementPayOrder(
+        currentPaymentConfig.orderPayload,
+        signature
+      );
+
+      if (result.success) {
+        setPaymentProgress({
+          step: "completed",
+          message: `Successfully processed KES ${elementPayCalculation!.kesAmount.toLocaleString()} payment`,
+        });
+
+        toast({
+          title: "Payment Successful",
+          description: `Order ${result.orderId} has been created and is being processed`,
+        });
+      } else {
+        throw new Error(result.error || "Order creation failed");
+      }
+    } catch (error) {
+      console.error("❌ Order creation failed:", error);
+      setPaymentProgress({
+        step: "failed",
+        message:
+          error instanceof Error ? error.message : "Order creation failed",
+      });
+    } finally {
+      setIsProcessingPayment(false);
+      setCurrentPaymentConfig(null);
+      setTimeout(() => setPaymentProgress(null), 5000);
+    }
+  };
 
   return (
     <AuthGuard>
@@ -418,7 +481,7 @@ export default function DisbursementPage() {
           {/* ElementPay Calculator */}
           <ElementPayCalculator
             onCalculationChange={setElementPayCalculation}
-            onProcessPayment={processElementPayPayment}
+            // onProcessPayment={processPayments}
             walletBalances={walletBalances}
             supportedTokens={supportedTokens}
             walletAddress={walletAddress}

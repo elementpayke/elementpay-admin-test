@@ -27,9 +27,24 @@ export interface ElementPayOrderResponse {
  */
 class ElementPayApiClient {
   private apiKey: string
+  private userAuthToken: string | null = null
 
   constructor() {
     this.apiKey = process.env.NEXT_PUBLIC_ELEMENTPAY_API_KEY || ''
+  }
+
+  /**
+   * Set the user's authentication token
+   */
+  setUserAuthToken(token: string): void {
+    this.userAuthToken = token
+  }
+
+  /**
+   * Clear the user's authentication token
+   */
+  clearUserAuthToken(): void {
+    this.userAuthToken = null
   }
 
   /**
@@ -66,14 +81,21 @@ class ElementPayApiClient {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), VALIDATION.API_TIMEOUT)
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'x-api-key': this.apiKey ? `${this.apiKey}` : '',
+        'X-Signature': signature,
+      }
+
+      // Add user authentication token if available
+      if (this.userAuthToken) {
+        headers['Authorization'] = `Bearer ${this.userAuthToken}`
+      }
+
       const response = await fetch(`${baseUrl}/orders/create`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'x-api-key': this.apiKey ? `${this.apiKey}` : '',
-          'X-Signature': signature,
-        },
+        headers,
         body: JSON.stringify(orderPayload),
         signal: controller.signal,
       })

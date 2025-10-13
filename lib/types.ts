@@ -195,7 +195,7 @@ export type ElementPayOrderPayload = {
     phone_number: string
     currency: "KES"
   }
-  message_hash: string // Encrypted message
+  message_hash?: string // Encrypted message
   reason?: string // Optional reason field
 }
 
@@ -241,3 +241,5 @@ export type PaymentProgress = {
   transactionHash?: string
   mpesaReference?: string
 }
+
+export type ElementPayOrderResponse =any;
