@@ -20,6 +20,7 @@ import { erc20Abi, parseUnits } from "viem";
 import { useWriteContract, usePublicClient } from "wagmi";
 import { ethers } from "ethers";
 import { elementPayApiClient } from "@/lib/elementpay-api-client";
+import { useTransactionPolling } from "@/lib/transaction-polling-context";
 
 interface ElementPayCalculatorProps {
   onCalculationChange: (calculation: {
@@ -60,6 +61,9 @@ export default function ElementPayCalculator({
   // Calculated values
   const [tokenAmount, setTokenAmount] = useState<number>(0);
   const [isValidCalculation, setIsValidCalculation] = useState(false);
+
+  // Transaction polling context
+  const { addTransaction } = useTransactionPolling();
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
@@ -243,64 +247,75 @@ export default function ElementPayCalculator({
     console.log("Is wallet connected:", isWalletConnected);
     console.log("Is valid calculation:", isValidCalculation);
 
-    const baseUrl =
-      ELEMENTPAY_CONFIG.getCurrentEnvironment() === "sandbox"
-        ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE ||
-          "https://sandbox.elementpay.net/api/v1"
-        : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE ||
-          "https://api.elementpay.net/api/v1";
-
-    const approveAmount =(Number(kesAmount) / (currentRate?.marked_up_rate || 1)).toString();
-
-    const approvalAmount = parseUnits(
-      approveAmount,
-      selectedToken?.decimals || 0
-    );
-
-    const spender = ELEMENTPAY_CONFIG.getContractAddress();
-
-    const approvalHash = await writeContractAsync({
-      address: selectedToken?.tokenAddress as `0x${string}`,
-      abi: erc20Abi,
-      functionName: "approve",
-      args: [spender as `0x${string}`, approvalAmount],
-      chain: selectedToken?.chain as any,
-      account: walletAddress as `0x${string}`,
-    });
-
-    await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
-
-    const orderDetails = {
-      user_address: walletAddress,
-      token: selectedToken?.tokenAddress as `0x${string}`,
-      order_type: 1 as const,
-      fiat_payload: {
-        amount_fiat: Number(kesAmount),
-        cashout_type: "PHONE" as const,
-        phone_number: phoneNumber,
-        currency: "KES" as const,
-      },
-    };
-
-    let _signature;
-
     try {
+      const approveAmount = (
+        Number(kesAmount) / (currentRate?.marked_up_rate || 1)
+      ).toString();
+
+      const approvalAmount = parseUnits(
+        approveAmount,
+        selectedToken?.decimals || 0
+      );
+
+      const spender = ELEMENTPAY_CONFIG.getContractAddress();
+
+      const approvalHash = await writeContractAsync({
+        address: selectedToken?.tokenAddress as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [spender as `0x${string}`, approvalAmount],
+        chain: selectedToken?.chain as any,
+        account: walletAddress as `0x${string}`,
+      });
+
+      await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
+
+      const orderDetails = {
+        user_address: walletAddress,
+        token: selectedToken?.tokenAddress as `0x${string}`,
+        order_type: 1 as const,
+        fiat_payload: {
+          amount_fiat: Number(kesAmount),
+          cashout_type: "PHONE" as const,
+          phone_number: phoneNumber,
+          currency: "KES" as const,
+        },
+      };
+
       if (!window.ethereum) throw new Error("Wallet not found");
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const message = JSON.stringify(orderDetails);
-      _signature = await signer.signMessage(message);
+      const _signature = await signer.signMessage(message);
 
       // Create order only after successful signature
       const order = await elementPayApiClient.createOrder(
         orderDetails,
         _signature
       );
-      console.log("✅ Order created successfully:", { orderId: order.id });
-    } catch (signError) {
-      console.error("❌ Signature rejected or failed:", signError);
-      toast.error("Signature rejected or failed. Please try again.");
-      return;
+      console.log("✅ Order created successfully:", { order });
+
+      // Add transaction to global polling context
+      addTransaction({
+        transactionHash: order.data.tx_hash,
+        orderId: order.data.tx_hash, // Use tx_hash as order ID for now
+        kesAmount: Number(kesAmount),
+        tokenAmount: tokenAmount,
+        tokenSymbol: selectedToken!.symbol,
+        phoneNumber: phoneNumber,
+        walletAddress,
+      });
+
+      toast.success(
+        `Order ${order.data.tx_hash} submitted. Monitoring transaction status...`
+      );
+    } catch (error) {
+      console.error("❌ Payment processing failed:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Payment processing failed. Please try again."
+      );
     }
   };
 

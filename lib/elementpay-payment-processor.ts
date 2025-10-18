@@ -20,6 +20,7 @@ export type PaymentInput = {
 export type PaymentResult = {
   success: boolean;
   orderId?: string;
+  transactionHash?: string;
   approvalHash?: string;
   signature?: string;
   order?: ElementPayOrderResponse;
@@ -37,11 +38,12 @@ export async function createElementPayOrder(
     console.log("🚀 Creating ElementPay order...");
     const order = await elementPayApiClient.createOrder(orderPayload, signature);
 
-    console.log("✅ Order created successfully:", { orderId: order.id });
+    console.log("✅ Order created successfully:", { orderId: order.id, transactionHash: order.transaction_hash });
 
     return {
       success: true,
       orderId: order.id,
+      transactionHash: order.transaction_hash,
       order,
     };
 

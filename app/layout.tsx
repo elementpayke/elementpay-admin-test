@@ -9,6 +9,8 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { EnvironmentProvider } from "@/components/providers/environment-provider";
 import { WagmiProviderWrapper } from "@/components/providers/wagmi-provider";
 import { WalletProvider } from "@/components/providers/wallet-provider";
+import { TransactionPollingProvider } from "@/lib/transaction-polling-context";
+import { TransactionPollingStatus } from "@/components/transaction-polling-status";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -41,8 +43,11 @@ export default function RootLayout({
               <AuthProvider>
                 <QueryProvider>
                   <EnvironmentProvider>
-                    {children}
-                    <Toaster />
+                    <TransactionPollingProvider>
+                      {children}
+                      <Toaster />
+                      <TransactionPollingStatus />
+                    </TransactionPollingProvider>
                   </EnvironmentProvider>
                 </QueryProvider>
               </AuthProvider>

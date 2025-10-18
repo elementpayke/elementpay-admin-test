@@ -21,6 +21,41 @@ export interface ElementPayOrderResponse {
   estimated_completion?: string
 }
 
+export interface ElementPayCreateOrderResponse {
+  status: string
+  message: string
+  data: {
+    tx_hash: string
+    status: string
+    rate_used: number
+    amount_sent: number
+    fiat_paid: number
+  }
+}
+
+export interface ElementPayTransactionResponse {
+  order_id: string
+  status: string
+  order_type: string
+  amount_fiat: number
+  fee_charged: number
+  currency: string
+  token: string
+  failure_reason?: string
+  receipt_number?: string
+  file_id: string
+  wallet_address: string
+  receiver_name?: string
+  mpesa_receipt_number?: string
+  phone_number: string
+  transaction_hashes: {
+    creation: string
+    settlement?: string
+    refund?: string
+  }
+  created_at: string
+}
+
 /**
  * ElementPay API Client
  * Handles API communication with ElementPay aggregator
@@ -60,7 +95,7 @@ class ElementPayApiClient {
   async createOrder(
     orderPayload: ElementPayOrderPayload,
     signature: string
-  ): Promise<ElementPayOrderResponse> {
+  ): Promise<ElementPayCreateOrderResponse> {
     const baseUrl = ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox'
       ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
       : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
@@ -111,7 +146,7 @@ class ElementPayApiClient {
       }
 
       const orderData = await response.json()
-      return orderData as ElementPayOrderResponse
+      return orderData as ElementPayCreateOrderResponse
     } catch (error) {
       console.error('Order creation failed:', error)
       if (error instanceof Error) {
@@ -147,7 +182,7 @@ class ElementPayApiClient {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(
-          errorData.message || 
+          errorData.message ||
           `HTTP ${response.status}: ${response.statusText}`
         )
       }
@@ -163,6 +198,52 @@ class ElementPayApiClient {
         throw error
       }
       throw new Error('Failed to fetch order status')
+    }
+  }
+
+  /**
+   * Get order by transaction hash
+   */
+  async getOrderByTransactionHash(txHash: string): Promise<ElementPayTransactionResponse> {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), VALIDATION.API_TIMEOUT)
+
+      const baseUrl = ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox'
+        ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
+        : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+
+      const response = await fetch(`${baseUrl}/orders/tx/${txHash}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'x-api-key': `${this.apiKey}`,
+        },
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(
+          errorData.message ||
+          `HTTP ${response.status}: ${response.statusText}`
+        )
+      }
+
+      const orderData = await response.json()
+      return orderData.data as ElementPayTransactionResponse
+    } catch (error) {
+      console.error('Failed to get order by transaction hash:', error)
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Request timeout - please try again')
+        }
+        throw error
+      }
+      throw new Error('Failed to fetch order by transaction hash')
     }
   }
 
