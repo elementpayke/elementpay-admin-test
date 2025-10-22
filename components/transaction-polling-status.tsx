@@ -7,7 +7,7 @@ import { Copy, X, Check } from "lucide-react";
 import { toast } from "sonner";
 
 export function TransactionPollingStatus() {
-  const { pendingTransactions, isPolling, removeTransaction } =
+  const { pendingTransactions, isMonitoring, removeTransaction } =
     useTransactionPolling();
 
   const copyToClipboard = async (text: string) => {
@@ -24,7 +24,7 @@ export function TransactionPollingStatus() {
     toast.info("Transaction monitoring cancelled");
   };
 
-  if (!isPolling || pendingTransactions.length === 0) {
+  if (!isMonitoring || pendingTransactions.length === 0) {
     return null;
   }
 
@@ -49,29 +49,98 @@ export function TransactionPollingStatus() {
                 <span className="font-medium">
                   Order #{transaction.orderId}
                 </span>
-                <span className="text-muted-foreground">
-                  {transaction.lastStatus || "Checking..."}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span
+                    className={`text-xs px-2 py-1 rounded ${
+                      transaction.lastStatus === "COMPLETED"
+                        ? "bg-green-100 text-green-800"
+                        : transaction.lastStatus === "FAILED"
+                        ? "bg-red-100 text-red-800"
+                        : transaction.lastStatus === "APPROVED"
+                        ? "bg-blue-100 text-blue-800"
+                        : transaction.lastStatus === "PROCESSING"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : transaction.lastStatus === "SETTLING"
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {transaction.lastStatus === "APPROVED"
+                      ? "Approved"
+                      : transaction.lastStatus === "PROCESSING"
+                      ? "Processing"
+                      : transaction.lastStatus === "SETTLING"
+                      ? "Settling"
+                      : transaction.lastStatus === "COMPLETED"
+                      ? "Completed"
+                      : transaction.lastStatus === "FAILED"
+                      ? "Failed"
+                      : transaction.lastStatus || "Pending"}
+                  </span>
+                  {transaction.confirmations !== undefined &&
+                    transaction.confirmations > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {transaction.confirmations} conf
+                      </span>
+                    )}
+                </div>
               </div>
 
               {/* Transaction Hash Row */}
-              <div className="flex items-center justify-between bg-background/50 rounded px-2 py-1">
-                <span className="text-muted-foreground font-mono text-xs truncate mr-2">
-                  {transaction.transactionHash.length > 20
-                    ? `${transaction.transactionHash.slice(
-                        0,
-                        10
-                      )}...${transaction.transactionHash.slice(-8)}`
-                    : transaction.transactionHash}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0"
-                  onClick={() => copyToClipboard(transaction.transactionHash)}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
+              <div className="space-y-1">
+                {/* Approval Transaction Hash */}
+                <div className="flex items-center justify-between bg-background/50 rounded px-2 py-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-muted-foreground">
+                      Approval:
+                    </span>
+                    <span className="text-muted-foreground font-mono text-xs truncate">
+                      {transaction.transactionHash.length > 20
+                        ? `${transaction.transactionHash.slice(
+                            0,
+                            8
+                          )}...${transaction.transactionHash.slice(-6)}`
+                        : transaction.transactionHash}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => copyToClipboard(transaction.transactionHash)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                {/* Settlement Transaction Hash (if available) */}
+                {transaction.settlementTxHash && (
+                  <div className="flex items-center justify-between bg-background/50 rounded px-2 py-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-muted-foreground">
+                        Settlement:
+                      </span>
+                      <span className="text-muted-foreground font-mono text-xs truncate">
+                        {transaction.settlementTxHash.length > 20
+                          ? `${transaction.settlementTxHash.slice(
+                              0,
+                              8
+                            )}...${transaction.settlementTxHash.slice(-6)}`
+                          : transaction.settlementTxHash}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() =>
+                        copyToClipboard(transaction.settlementTxHash)
+                      }
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="text-muted-foreground">

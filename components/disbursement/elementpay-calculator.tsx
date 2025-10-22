@@ -17,7 +17,7 @@ import type { ElementPayToken, WalletBalance } from "@/lib/types";
 import { toast } from "sonner";
 import { elementPayTokenService } from "@/lib/elementpay-token-service";
 import { erc20Abi, parseUnits } from "viem";
-import { useWriteContract, usePublicClient } from "wagmi";
+import { useWriteContract, usePublicClient, useChainId } from "wagmi";
 import { ethers } from "ethers";
 import { elementPayApiClient } from "@/lib/elementpay-api-client";
 import { useTransactionPolling } from "@/lib/transaction-polling-context";
@@ -67,6 +67,7 @@ export default function ElementPayCalculator({
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
+  const chainId = useChainId();
 
   // Validation functions
   const validatePhoneNumber = (phone: string): boolean => {
@@ -96,11 +97,11 @@ export default function ElementPayCalculator({
   const formatPhoneNumber = (phone: string): string => {
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.startsWith("254")) {
-      return `+${cleaned}`;
+      return cleaned;
     } else if (cleaned.startsWith("0")) {
-      return `+254${cleaned.substring(1)}`;
+      return `254${cleaned.substring(1)}`;
     }
-    return phone;
+    return cleaned;
   };
 
   // Fetch rate for selected token
@@ -270,6 +271,8 @@ export default function ElementPayCalculator({
 
       await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
 
+      const formattedPhoneNumber = formatPhoneNumber(phoneNumber);
+
       const orderDetails = {
         user_address: walletAddress,
         token: selectedToken?.tokenAddress as `0x${string}`,
@@ -277,7 +280,7 @@ export default function ElementPayCalculator({
         fiat_payload: {
           amount_fiat: Number(kesAmount),
           cashout_type: "PHONE" as const,
-          phone_number: phoneNumber,
+          phone_number: formattedPhoneNumber,
           currency: "KES" as const,
         },
       };
@@ -295,15 +298,32 @@ export default function ElementPayCalculator({
       );
       console.log("✅ Order created successfully:", { order });
 
+      // Get full order details to obtain the order_id for event matching
+      let orderId = order.data.tx_hash; // fallback
+      try {
+        const fullOrderDetails =
+          await elementPayApiClient.getOrderByTransactionHash(
+            order.data.tx_hash
+          );
+        orderId = fullOrderDetails.order_id;
+        console.log("📋 Got full order details, order_id:", orderId);
+      } catch (error) {
+        console.warn(
+          "⚠️ Could not get full order details, using tx_hash as order_id:",
+          error
+        );
+      }
+
       // Add transaction to global polling context
       addTransaction({
         transactionHash: order.data.tx_hash,
-        orderId: order.data.tx_hash, // Use tx_hash as order ID for now
+        orderId: orderId,
         kesAmount: Number(kesAmount),
         tokenAmount: tokenAmount,
         tokenSymbol: selectedToken!.symbol,
-        phoneNumber: phoneNumber,
+        phoneNumber: formattedPhoneNumber,
         walletAddress,
+        chainId,
       });
 
       toast.success(

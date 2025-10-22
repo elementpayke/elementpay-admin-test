@@ -8,44 +8,59 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import {
-  elementPayApiClient,
-  type ElementPayTransactionResponse,
-} from "./elementpay-api-client";
+import { usePublicClient, useBlockNumber, useAccount } from "wagmi";
+import { ethers } from "ethers";
 import { toast } from "sonner";
 import { transactionEvents } from "./transaction-events";
+import type { ElementPayTransactionResponse } from "./elementpay-api-client";
+import { elementPayApiClient } from "./elementpay-api-client";
+import { ELEMENTPAY_CONFIG } from "./elementpay-config";
+
+// Contract ABI for settlement events
+const CONTRACT_ABI = [
+  "event SettlementCreated(address indexed user, uint256 orderId, bytes32 settlementId, uint256 amount)",
+  "event SettlementCompleted(address indexed user, uint256 orderId, bytes32 settlementId, bool success)",
+  "event OrderSettled(address indexed user, uint256 orderId, bool success)",
+];
 
 // Types
 export interface PendingTransaction {
-  transactionHash: string;
+  transactionHash: string; // This is the approval/creation transaction hash
+  settlementTxHash?: string; // This is the settlement transaction hash (populated later)
   orderId: string;
   kesAmount: number;
   tokenAmount: number;
   tokenSymbol: string;
   phoneNumber: string;
   walletAddress: string;
+  chainId: number;
   startTime: number;
   lastStatus?: string;
   lastPolled?: number;
+  confirmations?: number;
+  approvalConfirmed?: boolean; // Track if approval tx succeeded
 }
 
 interface TransactionPollingContextType {
   // State
   pendingTransactions: PendingTransaction[];
-  isPolling: boolean;
+  isMonitoring: boolean;
 
   // Actions
   addTransaction: (transaction: Omit<PendingTransaction, "startTime">) => void;
   removeTransaction: (transactionHash: string) => void;
-  updateTransactionStatus: (transactionHash: string, status: string) => void;
+  updateTransactionStatus: (
+    transactionHash: string,
+    status: string,
+    confirmations?: number
+  ) => void;
 }
 
 const TransactionPollingContext = createContext<
   TransactionPollingContextType | undefined
 >(undefined);
 
-const POLLING_INTERVAL = 10000; // 10 seconds
-const MAX_POLLING_TIME = 300000; // 5 minutes
+const MAX_POLLING_TIME = 300000; // 5 minutes (used for timeout)
 const SESSION_STORAGE_KEY = "elementpay_pending_transactions";
 
 export function TransactionPollingProvider({
@@ -56,9 +71,14 @@ export function TransactionPollingProvider({
   const [pendingTransactions, setPendingTransactions] = useState<
     PendingTransaction[]
   >([]);
-  const [isPolling, setIsPolling] = useState(false);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isMonitoring, setIsMonitoring] = useState(false);
   const timeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const contractListenersRef = useRef<any[]>([]);
+  const publicClient = usePublicClient();
+  const { address, isConnected, connector } = useAccount();
+  const { data: blockNumber } = useBlockNumber({
+    watch: true, // This enables WebSocket monitoring when available
+  });
 
   // Load transactions from sessionStorage on mount
   useEffect(() => {
@@ -88,6 +108,211 @@ export function TransactionPollingProvider({
     }
   }, []);
 
+  // Setup wallet event listeners for settlement events
+  useEffect(() => {
+    if (!isConnected || !address || !connector) {
+      console.log("Wallet not connected, skipping event listener setup");
+      return;
+    }
+
+    const setupEventListeners = async () => {
+      try {
+        console.log(" Setting up wallet event listeners for settlement events");
+
+        // Get provider from connector
+        const provider = await connector.getProvider();
+        const ethersProvider = new ethers.BrowserProvider(provider as any);
+
+        // Get contract address based on environment
+        const contractAddress = ELEMENTPAY_CONFIG.getContractAddress();
+        if (!contractAddress) {
+          console.warn(
+            "⚠️ Contract address not configured, skipping event listeners"
+          );
+          return;
+        }
+
+        // Create contract instance
+        const contract = new ethers.Contract(
+          contractAddress,
+          CONTRACT_ABI,
+          ethersProvider
+        );
+
+        console.log(
+          "📡 Listening for settlement events on contract:",
+          contractAddress
+        );
+
+        // Listen for SettlementCreated events
+        const handleSettlementCreated = (
+          user: string,
+          orderId: bigint,
+          settlementId: string,
+          amount: bigint
+        ) => {
+          if (user.toLowerCase() === address!.toLowerCase()) {
+            console.log("🎯 Settlement created event received:", {
+              user,
+              orderId: orderId.toString(),
+              settlementId,
+              amount: amount.toString(),
+            });
+
+            // Find the pending transaction by orderId and update it
+            setPendingTransactions((prev) =>
+              prev.map((tx) => {
+                if (tx.orderId === orderId.toString()) {
+                  console.log(
+                    "✅ Found matching transaction, marking as processing settlement"
+                  );
+                  return {
+                    ...tx,
+                    lastStatus: "SETTLING",
+                    lastPolled: Date.now(),
+                  };
+                }
+                return tx;
+              })
+            );
+          }
+        };
+
+        // Listen for SettlementCompleted events
+        const handleSettlementCompleted = (
+          user: string,
+          orderId: bigint,
+          settlementId: string,
+          success: boolean
+        ) => {
+          if (user.toLowerCase() === address!.toLowerCase()) {
+            console.log("🏁 Settlement completed event received:", {
+              user,
+              orderId: orderId.toString(),
+              settlementId,
+              success,
+            });
+
+            // Find and complete the transaction
+            setPendingTransactions((prev) => {
+              const transaction = prev.find(
+                (tx) => tx.orderId === orderId.toString()
+              );
+              if (transaction) {
+                if (success) {
+                  console.log(
+                    "✅ Settlement successful, completing transaction"
+                  );
+                  // Remove transaction and emit success event
+                  setTimeout(
+                    () => removeTransaction(transaction.transactionHash),
+                    100
+                  );
+
+                  toast.success(
+                    `Payment completed! KES ${transaction.kesAmount.toLocaleString()} sent to ${
+                      transaction.phoneNumber
+                    }`
+                  );
+
+                  // Emit completion event
+                  transactionEvents.emitCompleted(transaction, {
+                    order_id: transaction.orderId,
+                    status: "COMPLETED",
+                    order_type: "offramp",
+                    amount_fiat: transaction.kesAmount,
+                    fee_charged: 0,
+                    currency: "KES",
+                    token: transaction.tokenSymbol,
+                    file_id: transaction.orderId,
+                    wallet_address: transaction.walletAddress,
+                    phone_number: transaction.phoneNumber,
+                    transaction_hashes: {
+                      creation: transaction.transactionHash,
+                      settlement: transaction.settlementTxHash || "",
+                      refund: null,
+                    },
+                    created_at: new Date().toISOString(),
+                  } as ElementPayTransactionResponse);
+                } else {
+                  console.log("❌ Settlement failed, removing transaction");
+                  // Remove transaction and emit failure event
+                  setTimeout(
+                    () => removeTransaction(transaction.transactionHash),
+                    100
+                  );
+
+                  toast.error(
+                    "Payment settlement failed. Please contact support."
+                  );
+                  transactionEvents.emitFailed(
+                    transaction,
+                    new Error("Settlement transaction failed")
+                  );
+                }
+              }
+              return prev;
+            });
+          }
+        };
+
+        // Listen for OrderSettled events (fallback/legacy)
+        const handleOrderSettled = (
+          user: string,
+          orderId: bigint,
+          success: boolean
+        ) => {
+          if (user.toLowerCase() === address!.toLowerCase()) {
+            console.log("📋 Order settled event received:", {
+              user,
+              orderId: orderId.toString(),
+              success,
+            });
+
+            // Handle similar to SettlementCompleted
+            handleSettlementCompleted(user, orderId, "", success);
+          }
+        };
+
+        // Register event listeners
+        contract.on("SettlementCreated", handleSettlementCreated);
+        contract.on("SettlementCompleted", handleSettlementCompleted);
+        contract.on("OrderSettled", handleOrderSettled);
+
+        // Store listeners for cleanup
+        contractListenersRef.current = [
+          { event: "SettlementCreated", handler: handleSettlementCreated },
+          { event: "SettlementCompleted", handler: handleSettlementCompleted },
+          { event: "OrderSettled", handler: handleOrderSettled },
+        ];
+
+        console.log("✅ Wallet event listeners setup complete");
+
+        // Return cleanup function
+        return () => {
+          console.log("🧹 Cleaning up wallet event listeners");
+          contractListenersRef.current.forEach(({ event, handler }) => {
+            contract.off(event, handler);
+          });
+          contractListenersRef.current = [];
+        };
+      } catch (error) {
+        console.error("❌ Failed to setup wallet event listeners:", error);
+      }
+    };
+
+    // Setup listeners and store cleanup function
+    let cleanup: (() => void) | undefined;
+    setupEventListeners().then((cleanupFn) => {
+      cleanup = cleanupFn;
+    });
+
+    // Return cleanup function
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [isConnected, address, connector]);
+
   // Save transactions to sessionStorage whenever they change
   useEffect(() => {
     try {
@@ -100,157 +325,198 @@ export function TransactionPollingProvider({
     }
   }, [pendingTransactions]);
 
-  // Poll transaction status
-  const pollTransactionStatus = useCallback(
-    async (transaction: PendingTransaction) => {
-      try {
-        console.log("🔄 Polling transaction:", transaction);
+  // Check all pending transactions when a new block is mined
+  const checkPendingTransactions = useCallback(async () => {
+    if (pendingTransactions.length === 0 || !publicClient) return;
 
-        const response: ElementPayTransactionResponse =
-          await elementPayApiClient.getOrderByTransactionHash(
+    console.log("🔍 Checking pending transactions on new block...");
+
+    for (const transaction of pendingTransactions) {
+      try {
+        // Phase 1: Monitor approval transaction (creation hash)
+        if (!transaction.approvalConfirmed) {
+          try {
+            // Get approval transaction receipt from blockchain
+            const receipt = await publicClient.getTransactionReceipt({
+              hash: transaction.transactionHash as `0x${string}`,
+            });
+
+            console.log("📋 Approval transaction receipt:", {
+              transactionHash: transaction.transactionHash,
+              status: receipt.status,
+              blockNumber: receipt.blockNumber,
+            });
+
+            if (receipt.status === "success") {
+              // Approval transaction succeeded - mark as confirmed
+              console.log(
+                "✅ Approval transaction confirmed:",
+                transaction.transactionHash
+              );
+              updateTransactionStatus(
+                transaction.transactionHash,
+                "APPROVED",
+                1
+              );
+
+              // Update transaction to mark approval as confirmed
+              setPendingTransactions((prev) =>
+                prev.map((tx) =>
+                  tx.transactionHash === transaction.transactionHash
+                    ? { ...tx, approvalConfirmed: true, lastStatus: "APPROVED" }
+                    : tx
+                )
+              );
+
+              // Continue to next iteration to check for settlement
+              continue;
+            } else if (receipt.status === "reverted") {
+              // Approval transaction failed
+              console.log(
+                "❌ Approval transaction failed:",
+                transaction.transactionHash
+              );
+              removeTransaction(transaction.transactionHash);
+              toast.error("Token approval failed. Please try again.");
+              transactionEvents.emitFailed(
+                transaction,
+                new Error("Approval transaction reverted")
+              );
+              continue;
+            }
+          } catch (error) {
+            // Approval transaction not yet mined
+            console.log(
+              "⏳ Approval transaction still pending:",
+              transaction.transactionHash
+            );
+            updateTransactionStatus(transaction.transactionHash, "PENDING", 0);
+            continue;
+          }
+        }
+
+        // Phase 2: Approval confirmed, waiting for wallet settlement events
+        if (transaction.approvalConfirmed && !transaction.settlementTxHash) {
+          // No longer polling API - relying on wallet events for settlement updates
+          console.log(
+            "⏳ Waiting for settlement events via wallet:",
             transaction.transactionHash
           );
+          updateTransactionStatus(transaction.transactionHash, "APPROVED", 1);
+          continue;
+        }
 
-        const currentStatus = response.status;
-        const previousStatus = transaction.lastStatus;
+        // Phase 3: Monitor settlement transaction on blockchain
+        if (transaction.approvalConfirmed && transaction.settlementTxHash) {
+          try {
+            // Get settlement transaction receipt from blockchain
+            const receipt = await publicClient.getTransactionReceipt({
+              hash: transaction.settlementTxHash as `0x${string}`,
+            });
 
-        console.log("📊 Transaction status update:", {
-          transactionHash: transaction.transactionHash,
-          previousStatus,
-          currentStatus,
-          orderId: response.order_id,
-          amountFiat: response.amount_fiat,
-          phoneNumber: response.phone_number,
-        });
+            console.log("💰 Settlement transaction receipt:", {
+              settlementTxHash: transaction.settlementTxHash,
+              status: receipt.status,
+              blockNumber: receipt.blockNumber,
+            });
 
-        // Update transaction status
-        updateTransactionStatus(transaction.transactionHash, currentStatus);
+            let currentStatus: string;
+            let confirmations = 1;
 
-        // Handle status changes
-        switch (currentStatus) {
-          case "PENDING":
-            // Continue polling
-            break;
+            if (receipt.status === "success") {
+              currentStatus = "COMPLETED";
+            } else if (receipt.status === "reverted") {
+              currentStatus = "FAILED";
+            } else {
+              currentStatus = "SETTLING";
+            }
 
-          case "PROCESSING":
-            // Continue polling
-            break;
+            console.log("Transaction settlement status update:", {
+              settlementTxHash: transaction.settlementTxHash,
+              currentStatus,
+              confirmations,
+            });
 
-          case "COMPLETED":
-            // Transaction completed successfully
+            updateTransactionStatus(
+              transaction.transactionHash,
+              currentStatus,
+              confirmations
+            );
+
+            // Handle final settlement status
+            if (currentStatus === "COMPLETED") {
+              console.log(
+                "✅ Settlement completed:",
+                transaction.settlementTxHash
+              );
+              removeTransaction(transaction.transactionHash);
+
+              toast.success(
+                `Payment completed! KES ${transaction.kesAmount.toLocaleString()} sent to ${
+                  transaction.phoneNumber
+                }`
+              );
+
+              // Emit completion event with full response data
+              transactionEvents.emitCompleted(transaction, {
+                order_id: transaction.orderId,
+                status: "COMPLETED",
+                order_type: "offramp",
+                amount_fiat: transaction.kesAmount,
+                fee_charged: 0,
+                currency: "KES",
+                token: transaction.tokenSymbol,
+                file_id: transaction.orderId,
+                wallet_address: transaction.walletAddress,
+                phone_number: transaction.phoneNumber,
+                transaction_hashes: {
+                  creation: transaction.transactionHash,
+                  settlement: transaction.settlementTxHash,
+                  refund: null,
+                },
+                created_at: new Date().toISOString(),
+              } as ElementPayTransactionResponse);
+            } else if (currentStatus === "FAILED") {
+              console.log(
+                "❌ Settlement failed:",
+                transaction.settlementTxHash
+              );
+              removeTransaction(transaction.transactionHash);
+              toast.error("Payment settlement failed. Please contact support.");
+              transactionEvents.emitFailed(
+                transaction,
+                new Error("Settlement transaction reverted")
+              );
+            }
+          } catch (error) {
+            // Settlement transaction not yet mined
             console.log(
-              "✅ Transaction completed:",
-              transaction.transactionHash
+              "⏳ Settlement transaction still pending:",
+              transaction.settlementTxHash
             );
-            removeTransaction(transaction.transactionHash);
-
-            toast.success(
-              `Payment completed! KES ${response.amount_fiat.toLocaleString()} sent to ${
-                response.phone_number
-              }`
-            );
-
-            // Transaction completed successfully
-            transactionEvents.emitCompleted(transaction, response);
-            break;
-
-          case "FAILED":
-            console.log("❌ Transaction failed:", transaction.transactionHash);
-            removeTransaction(transaction.transactionHash);
-
-            const failureReason =
-              response.failure_reason || "Transaction failed";
-            toast.error(`Payment failed: ${failureReason}`);
-
-            transactionEvents.emitFailed(transaction, new Error(failureReason));
-            break;
-
-          case "CANCELLED":
-            console.log(
-              "🚫 Transaction cancelled:",
-              transaction.transactionHash
-            );
-            removeTransaction(transaction.transactionHash);
-
-            toast.error("Transaction was cancelled.");
-            transactionEvents.emitCancelled(transaction);
-            break;
-
-          default:
-            console.log("⚠️ Unknown transaction status:", currentStatus);
+            updateTransactionStatus(transaction.transactionHash, "SETTLING", 1);
+          }
         }
       } catch (error) {
-        console.error("❌ Failed to poll transaction status:", error);
-
-        // Check if this is a permanent API error (like order not found)
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const isPermanentError =
-          errorMessage.includes("Order not found") ||
-          errorMessage.includes("not found") ||
-          errorMessage.includes("HTTP 404");
-
-        if (isPermanentError) {
-          console.log(
-            "🚫 Permanent API error, stopping polling for transaction:",
-            transaction.transactionHash
-          );
-          removeTransaction(transaction.transactionHash);
-
-          toast.error(
-            `Transaction not found or no longer available. Please check your transaction history.`
-          );
-
-          transactionEvents.emitFailed(transaction, new Error(errorMessage));
-        } else {
-          // Network errors, timeouts, etc. - retry on next poll
-          // Only remove after max polling time expires
-        }
+        console.error("❌ Unexpected error checking transaction:", error);
       }
-    },
-    []
-  );
-
-  // Start polling for all pending transactions
-  const startPolling = useCallback(() => {
-    if (pendingTransactions.length === 0) {
-      setIsPolling(false);
-      return;
     }
+  }, [pendingTransactions, publicClient]);
 
-    if (isPolling) return; // Already polling
-
-    console.log(
-      "🚀 Starting transaction polling for",
-      pendingTransactions.length,
-      "transactions"
-    );
-    setIsPolling(true);
-
-    // Poll immediately for all transactions
-    pendingTransactions.forEach((transaction) => {
-      pollTransactionStatus(transaction);
-    });
-
-    // Set up interval polling
-    pollingIntervalRef.current = setInterval(() => {
-      pendingTransactions.forEach((transaction) => {
-        pollTransactionStatus(transaction);
-      });
-    }, POLLING_INTERVAL);
-  }, [pendingTransactions, isPolling, pollTransactionStatus]);
-
-  // Stop polling
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
+  // Check transactions whenever a new block is mined (WebSocket-powered)
+  useEffect(() => {
+    if (blockNumber && pendingTransactions.length > 0) {
+      console.log("🆕 New block mined:", blockNumber);
+      checkPendingTransactions();
     }
-    setIsPolling(false);
-    console.log("⏹️ Stopped transaction polling");
-  }, []);
+  }, [blockNumber, checkPendingTransactions, pendingTransactions.length]);
 
-  // Add transaction to polling queue
+  // Update monitoring state based on pending transactions
+  useEffect(() => {
+    setIsMonitoring(pendingTransactions.length > 0);
+  }, [pendingTransactions.length]);
+
+  // Add transaction to monitoring queue
   const addTransaction = useCallback(
     (transactionData: Omit<PendingTransaction, "startTime">) => {
       const transaction: PendingTransaction = {
@@ -265,7 +531,7 @@ export function TransactionPollingProvider({
         );
         if (exists) {
           console.log(
-            "⚠️ Transaction already being polled:",
+            "⚠️ Transaction already being monitored:",
             transaction.transactionHash
           );
           return prev;
@@ -278,7 +544,7 @@ export function TransactionPollingProvider({
         }
 
         console.log(
-          "➕ Added transaction to polling queue:",
+          "Added transaction to monitoring queue - my leige, as :",
           transaction.transactionHash
         );
         return updated;
@@ -287,7 +553,7 @@ export function TransactionPollingProvider({
       // Set up individual timeout for this transaction
       const timeout = setTimeout(() => {
         console.log(
-          "⏰ Transaction polling timeout:",
+          "⏰ Transaction monitoring timeout:",
           transaction.transactionHash
         );
         removeTransaction(transaction.transactionHash);
@@ -301,7 +567,7 @@ export function TransactionPollingProvider({
     []
   );
 
-  // Remove transaction from polling queue
+  // Remove transaction from monitoring queue
   const removeTransaction = useCallback((transactionHash: string) => {
     setPendingTransactions((prev) =>
       prev.filter((tx) => tx.transactionHash !== transactionHash)
@@ -314,16 +580,24 @@ export function TransactionPollingProvider({
       timeoutsRef.current.delete(transactionHash);
     }
 
-    console.log("➖ Removed transaction from polling queue:", transactionHash);
+    console.log(
+      "➖ Removed transaction from monitoring queue:",
+      transactionHash
+    );
   }, []);
 
   // Update transaction status
   const updateTransactionStatus = useCallback(
-    (transactionHash: string, status: string) => {
+    (transactionHash: string, status: string, confirmations?: number) => {
       setPendingTransactions((prev) =>
         prev.map((tx) =>
           tx.transactionHash === transactionHash
-            ? { ...tx, lastStatus: status, lastPolled: Date.now() }
+            ? {
+                ...tx,
+                lastStatus: status,
+                lastPolled: Date.now(),
+                confirmations: confirmations ?? tx.confirmations ?? 0,
+              }
             : tx
         )
       );
@@ -331,28 +605,18 @@ export function TransactionPollingProvider({
     []
   );
 
-  // Start/stop polling based on pending transactions
-  useEffect(() => {
-    if (pendingTransactions.length > 0) {
-      startPolling();
-    } else {
-      stopPolling();
-    }
-  }, [pendingTransactions.length, startPolling, stopPolling]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopPolling();
       // Clear all timeouts
       timeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
       timeoutsRef.current.clear();
     };
-  }, [stopPolling]);
+  }, []);
 
   const contextValue: TransactionPollingContextType = {
     pendingTransactions,
-    isPolling,
+    isMonitoring,
     addTransaction,
     removeTransaction,
     updateTransactionStatus,
