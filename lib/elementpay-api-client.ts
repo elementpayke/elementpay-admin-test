@@ -65,7 +65,10 @@ class ElementPayApiClient {
   private userAuthToken: string | null = null
 
   constructor() {
-    this.apiKey = process.env.NEXT_PUBLIC_ELEMENTPAY_API_KEY || ''
+    this.apiKey =
+    ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox'
+    ? process.env.NEXT_PRIVATE_ELEMENTPAY_API_KEY_SANDBOX || ''
+    : process.env.NEXT_PRIVATE_ELEMENTPAY_API_KEY_LIVE || ''
   }
 
   /**
@@ -97,8 +100,8 @@ class ElementPayApiClient {
     signature: string
   ): Promise<ElementPayCreateOrderResponse> {
     const baseUrl = ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox'
-      ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
-      : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+      ? process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
+      : process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
 
     console.log('🔄 [ELEMENTPAY-API-CLIENT] createOrder method called with:', {
       orderPayload,
@@ -210,8 +213,8 @@ class ElementPayApiClient {
       const timeoutId = setTimeout(() => controller.abort(), VALIDATION.API_TIMEOUT)
 
       const baseUrl = ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox'
-        ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
-        : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
+        ? process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
+        : process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1'
 
       const response = await fetch(`${baseUrl}/orders/tx/${txHash}`, {
         method: 'GET',
@@ -382,8 +385,8 @@ class ElementPayApiClient {
   getConfig(): { baseUrl: string; aggregatorUrl: string; hasApiKey: boolean; environment: string } {
     return {
       baseUrl: ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox' 
-        ? process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
-        : process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1',
+        ? process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1'
+        : process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1',
       aggregatorUrl: this.getAggregatorUrl(),
       hasApiKey: !!this.apiKey,
       environment: ELEMENTPAY_CONFIG.getCurrentEnvironment(),

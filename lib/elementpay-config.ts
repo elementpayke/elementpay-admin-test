@@ -3,8 +3,8 @@ import { environmentManager } from './api-config'
 // ElementPay Configuration
 export const ELEMENTPAY_CONFIG = {
   // Contract Addresses - Environment specific
-  CONTRACT_ADDRESS_LIVE: process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_LIVE || '0x...',
-  CONTRACT_ADDRESS_SANDBOX: process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_SANDBOX || '0x...',
+  CONTRACT_ADDRESS_LIVE: process.env.NEXT_PRIVATE_ELEMENTPAY_CONTRACT_ADDRESS_LIVE || '0x...',
+  CONTRACT_ADDRESS_SANDBOX: process.env.NEXT_PRIVATE_ELEMENTPAY_CONTRACT_ADDRESS_SANDBOX || '0x...',
   
   // Get contract address based on current environment
   getContractAddress: () => {
@@ -14,7 +14,7 @@ export const ELEMENTPAY_CONFIG = {
   },
   
   // Encryption
-  SECRET_KEY: process.env.NEXT_PUBLIC_ELEMENTPAY_SECRET_KEY || "Nt-H5Ofmhk1JonVFjrRJr_pV6p-oADX_FdrQyFAqx5Y=",
+  SECRET_KEY: process.env.NEXT_PRIVATE_ELEMENTPAY_SECRET_KEY || "Nt-H5Ofmhk1JonVFjrRJr_pV6p-oADX_FdrQyFAqx5Y=",
   
   // Fixed parameters for off-ramp
   CASHOUT_TYPE: "PHONE" as const,

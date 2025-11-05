@@ -17,8 +17,8 @@ const CONTRACT_ABI = [
 // Contract address from env
 const CONTRACT_ADDRESS =
   ELEMENTPAY_CONFIG.getCurrentEnvironment() === "sandbox"
-    ? process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_SANDBOX
-    : process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_LIVE;
+    ? process.env.NEXT_PRIVATE_ELEMENTPAY_CONTRACT_ADDRESS_SANDBOX
+    : process.env.NEXT_PRIVATE_ELEMENTPAY_CONTRACT_ADDRESS_LIVE;
 
 interface Order {
   orderId: string;

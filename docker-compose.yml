@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   elementpay-sandbox:
@@ -11,16 +11,16 @@ services:
       # NextAuth Configuration
       - NEXTAUTH_URL=http://localhost:3000
       - AUTH_SECRET=${AUTH_SECRET:-your-auth-secret-here}
-      
+
       # ElementPay API Configuration
-      - NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE=${NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE:-https://sandbox.elementpay.net/api/v1}
-      - NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE=${NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE:-https://api.elementpay.net/api/v1}
-      - NEXT_PUBLIC_ELEMENTPAY_ENV=${NEXT_PUBLIC_ELEMENTPAY_ENV:-sandbox}
-      
+      - NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE=${NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE:-https://sandbox.elementpay.net/api/v1}
+      - NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE=${NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE:-https://api.elementpay.net/api/v1}
+      - NEXT_PRIVATE_ELEMENTPAY_ENV=${NEXT_PRIVATE_ELEMENTPAY_ENV:-sandbox}
+
       # Node Environment
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
-    
+
     # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
@@ -28,10 +28,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    
+
     # Restart policy
     restart: unless-stopped
-    
+
     # Resource limits (optional)
     deploy:
       resources:

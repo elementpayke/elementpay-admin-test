@@ -20,9 +20,9 @@ NEXTAUTH_URL=http://localhost:3000
 AUTH_SECRET=your-super-secret-auth-key-change-this-in-production
 
 # ElementPay API Configuration
-NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE=https://sandbox.elementpay.net/api/v1
-NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE=https://api.elementpay.net/api/v1
-NEXT_PUBLIC_ELEMENTPAY_ENV=sandbox
+NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE=https://sandbox.elementpay.net/api/v1
+NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE=https://api.elementpay.net/api/v1
+NEXT_PRIVATE_ELEMENTPAY_ENV=sandbox
 ```
 
 ### 2. Production Deployment
@@ -136,9 +136,9 @@ The production Dockerfile uses a multi-stage build:
 |----------|-------------|---------|
 | `NEXTAUTH_URL` | NextAuth base URL | `http://localhost:3000` |
 | `AUTH_SECRET` | NextAuth secret key | Required |
-| `NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE` | Sandbox API URL | `https://sandbox.elementpay.net/api/v1` |
-| `NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE` | Live API URL | `https://api.elementpay.net/api/v1` |
-| `NEXT_PUBLIC_ELEMENTPAY_ENV` | Default environment | `sandbox` |
+| `NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE` | Sandbox API URL | `https://sandbox.elementpay.net/api/v1` |
+| `NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE` | Live API URL | `https://api.elementpay.net/api/v1` |
+| `NEXT_PRIVATE_ELEMENTPAY_ENV` | Default environment | `sandbox` |
 
 ### Port Configuration
 

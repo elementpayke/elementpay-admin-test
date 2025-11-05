@@ -19,8 +19,8 @@ export async function POST(req: Request) {
     // Choose the correct ElementPay API based on sandbox parameter
     const isSandbox = sandbox === true || sandbox === 'true'
     const elementPayBaseUrl = isSandbox 
-      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
-      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+      ? (process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
+      : (process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
     
     const resendUrl = `${elementPayBaseUrl}/auth/resend-verification`
     
