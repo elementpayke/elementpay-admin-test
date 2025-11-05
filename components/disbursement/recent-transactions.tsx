@@ -24,9 +24,9 @@ export default function RecentTransactions({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Clock className="h-5 w-5" />
+      <CardHeader className="pb-3">
+        <CardTitle className="text-xl flex items-center space-x-2">
+          <Clock className="h-4 w-4" />
           <span>Recent Transactions</span>
         </CardTitle>
       </CardHeader>
@@ -35,14 +35,18 @@ export default function RecentTransactions({
           {recentDisbursements.slice(0, 5).map((transaction) => (
             <div
               key={transaction.id}
-              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+              className="flex items-center justify-between p-2.5 bg-muted/30 rounded-md border hover:bg-muted/50 transition-colors"
             >
               <div>
-                <p className="font-medium">
+                <p className="text-sm font-medium">
                   KES {transaction.kesAmount.toLocaleString()}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(transaction.created_at).toLocaleDateString()}
+                <p className="text-xs text-muted-foreground">
+                  {new Date(transaction.created_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
                 </p>
               </div>
               <Badge
@@ -53,6 +57,7 @@ export default function RecentTransactions({
                     ? "secondary"
                     : "destructive"
                 }
+                className="text-xs"
               >
                 {transaction.status}
               </Badge>
