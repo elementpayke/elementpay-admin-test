@@ -61,6 +61,16 @@ export default function ElementPayCalculator({
   // Calculated values
   const [tokenAmount, setTokenAmount] = useState<number>(0);
   const [isValidCalculation, setIsValidCalculation] = useState(false);
+  const [isProcessingTransaction, setIsProcessingTransaction] = useState(false);
+
+  // Fee breakdown state (markup-based)
+  const [feeBreakdown, setFeeBreakdown] = useState<{
+    baseAmount: number;
+    feeAmount: number;
+    totalAmount: number;
+    feeApplied: boolean;
+    feeBand?: { description: string } | null;
+  } | null>(null);
 
   // Transaction polling context
   const { addTransaction } = useTransactionPolling();
@@ -140,10 +150,11 @@ export default function ElementPayCalculator({
   useEffect(() => {
     if (kesAmount && currentRate && validateAmount(kesAmount)) {
       try {
-        // Use marked_up_rate only for calculation as instructed by backend
-        // Add 0.01 buffer to account for precision differences
         const kesValue = parseFloat(kesAmount);
-        const calculatedAmount = kesValue / currentRate.marked_up_rate;
+        const calculatedAmount = elementPayRateService.calculateTokenAmount(
+          kesValue,
+          currentRate
+        );
         console.log("Maarkup details:", {
           kesAmount: kesValue,
           markedUpRate: currentRate.marked_up_rate,
@@ -157,6 +168,27 @@ export default function ElementPayCalculator({
       setTokenAmount(0);
     }
   }, [kesAmount, currentRate]);
+
+  // Compute fee breakdown (markup) for display
+  useEffect(() => {
+    if (kesAmount && validateAmount(kesAmount)) {
+      const amount = parseFloat(kesAmount);
+      const breakdown = elementPayRateService.getCostBreakdown(amount);
+      setFeeBreakdown({
+        baseAmount: breakdown.baseAmount,
+        feeAmount: breakdown.markupAmount,
+        totalAmount: breakdown.totalAmount,
+        feeApplied: breakdown.markupApplied,
+        feeBand: breakdown.markupApplied
+          ? {
+              description: `${ELEMENTPAY_CONFIG.MARKUP_PERCENTAGE}% markup applied for amounts over KES ${ELEMENTPAY_CONFIG.MARKUP_THRESHOLD}`,
+            }
+          : null,
+      });
+    } else {
+      setFeeBreakdown(null);
+    }
+  }, [kesAmount]);
 
   // Get wallet balance for selected token
   const getTokenBalance = (): WalletBalance | null => {
@@ -204,7 +236,7 @@ export default function ElementPayCalculator({
       phoneNumber: formatPhoneNumber(phoneNumber),
     };
 
-    // onCalculationChange(calculationData);
+    onCalculationChange(calculationData);
   }, [
     selectedToken,
     kesAmount,
@@ -249,6 +281,7 @@ export default function ElementPayCalculator({
     console.log("Is valid calculation:", isValidCalculation);
 
     try {
+      setIsProcessingTransaction(true);
       const approveAmount = (
         Number(kesAmount) / (currentRate?.marked_up_rate || 1)
       ).toString();
@@ -336,224 +369,390 @@ export default function ElementPayCalculator({
           ? error.message
           : "Payment processing failed. Please try again."
       );
+    } finally {
+      setIsProcessingTransaction(false);
     }
   };
 
+  const handleCancelTransaction = () => {
+    setIsProcessingTransaction(false);
+    toast.message("Transaction cancelled");
+  };
+
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <span>Off-Ramp Calculator</span>
-          {isLoadingRate && <Loader2 className="h-4 w-4 animate-spin" />}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Token Selection */}
-        <div className="space-y-2">
-          <Label htmlFor="token-select">Select Token</Label>
-          <select
-            id="token-select"
-            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            onChange={(e) => handleTokenSelect(e.target.value)}
-          >
-            <option>Choose a token to convert</option>
-            {availableTokens.map((token) => (
-              <option key={token.tokenAddress} value={token.tokenAddress}>
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium">{token.symbol}</span>
-                  <span className="text-sm text-muted-foreground">
-                    on {token.chain}
-                  </span>
-                </div>
-              </option>
-            ))}
-          </select>
-        </div>
+    <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4 ${className}`}>
+      {/* Main Section - Input Form */}
+      <Card className="lg:col-span-2">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl flex items-center space-x-2">
+            <span>Off-Ramp Calculator</span>
+            {isLoadingRate && <Loader2 className="h-4 w-4 animate-spin" />}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Token Selection */}
+          <div className="space-y-1.5">
+            <Label htmlFor="token-select" className="text-sm">
+              Select Token
+            </Label>
+            <select
+              id="token-select"
+              className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              onChange={(e) => handleTokenSelect(e.target.value)}
+            >
+              <option>Choose a token to convert</option>
+              {availableTokens.map((token) => (
+                <option key={token.tokenAddress} value={token.tokenAddress}>
+                  {token.symbol} on {token.chain}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* Phone Number */}
-        <div className="space-y-2">
-          <Label htmlFor="phone-number">Phone Number</Label>
-          <Input
-            id="phone-number"
-            placeholder="+254712345678"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            className={
-              phoneNumber && !validatePhoneNumber(phoneNumber)
-                ? "border-red-500"
-                : ""
-            }
-          />
-          {phoneNumber && !validatePhoneNumber(phoneNumber) && (
-            <p className="text-sm text-red-500">
-              {ERROR_MESSAGES.INVALID_PHONE}
-            </p>
-          )}
-        </div>
+          {/* Phone Number */}
+          <div className="space-y-1.5">
+            <Label htmlFor="phone-number" className="text-sm">
+              Phone Number
+            </Label>
+            <Input
+              id="phone-number"
+              placeholder="+254712345678"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              className={`h-9 ${
+                phoneNumber && !validatePhoneNumber(phoneNumber)
+                  ? "border-red-500"
+                  : ""
+              }`}
+            />
+            {phoneNumber && !validatePhoneNumber(phoneNumber) && (
+              <p className="text-xs text-red-500">
+                {ERROR_MESSAGES.INVALID_PHONE}
+              </p>
+            )}
+          </div>
 
-        {/* KES Amount */}
-        <div className="space-y-2">
-          <Label htmlFor="kes-amount">Amount to Receive (KES)</Label>
-          <Input
-            id="kes-amount"
-            type="number"
-            placeholder="1000"
-            value={kesAmount}
-            onChange={(e) => setKesAmount(e.target.value)}
-            className={
-              kesAmount && !validateAmount(kesAmount) ? "border-red-500" : ""
-            }
-          />
-          {kesAmount && !validateAmount(kesAmount) && (
-            <p className="text-sm text-red-500">
-              {ERROR_MESSAGES.INVALID_AMOUNT}
-            </p>
-          )}
-        </div>
+          {/* KES Amount */}
+          <div className="space-y-1.5">
+            <Label htmlFor="kes-amount" className="text-sm">
+              Amount to Receive (KES)
+            </Label>
+            <Input
+              id="kes-amount"
+              type="number"
+              placeholder="1000"
+              value={kesAmount}
+              onChange={(e) => setKesAmount(e.target.value)}
+              className={`h-9 ${
+                kesAmount && !validateAmount(kesAmount) ? "border-red-500" : ""
+              }`}
+            />
+            {kesAmount && !validateAmount(kesAmount) && (
+              <p className="text-xs text-red-500">
+                {ERROR_MESSAGES.INVALID_AMOUNT}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Rate Display */}
-        {selectedToken && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Exchange Rate</Label>
+      {/* Aside Section - Transaction Details */}
+      <Card className="lg:col-span-1">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl">Transaction Details</CardTitle>
+            {selectedToken && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleRefreshRate}
                 disabled={isLoadingRate}
+                className="h-8 w-8 p-0"
               >
                 <RefreshCw
-                  className={`h-4 w-4 ${isLoadingRate ? "animate-spin" : ""}`}
+                  className={`h-3.5 w-3.5 ${
+                    isLoadingRate ? "animate-spin" : ""
+                  }`}
                 />
               </Button>
-            </div>
-
-            {rateError ? (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{rateError}</AlertDescription>
-              </Alert>
-            ) : currentRate ? (
-              <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">1 {selectedToken.symbol} =</span>
-                  <span className="font-medium">
-                    KES {currentRate.marked_up_rate.toFixed(2)}
-                  </span>
-                </div>
-                {currentRate.markup_percentage > 0 && (
-                  <div className="flex justify-between items-center text-xs text-muted-foreground">
-                    <span>Markup ({currentRate.markup_percentage}%)</span>
-                    <span>
-                      Applied to amounts over KES{" "}
-                      {ELEMENTPAY_CONFIG.MARKUP_THRESHOLD}
-                    </span>
-                  </div>
-                )}
-                {currentRate.markup_percentage > 0 && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Includes {currentRate.markup_percentage.toFixed(1)}% markup
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <span className="text-sm text-muted-foreground">
-                  Select a token to see exchange rate
-                </span>
-              </div>
             )}
           </div>
-        )}
-
-        {/* Token Amount Required */}
-        {selectedToken && tokenAmount > 0 && (
-          <div className="space-y-2">
-            <Label>Token Amount Required</Label>
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="text-sm">You need:</span>
-                <span className="font-medium">
-                  {tokenAmount.toFixed(6)} {selectedToken.symbol}
-                </span>
-              </div>
-
-              {/* Balance Check */}
-              {tokenBalance && (
-                <div className="mt-2 pt-2 border-t">
-                  <div className="flex justify-between items-center text-sm">
-                    <span>Wallet Balance:</span>
-                    <span
-                      className={
-                        hasInsufficientBalance
-                          ? "text-red-500"
-                          : "text-green-600"
-                      }
-                    >
-                      {tokenBalance.formattedBalance} {selectedToken.symbol}
-                    </span>
-                  </div>
-                  {hasInsufficientBalance && (
-                    <div className="flex items-center space-x-1 mt-1 text-red-500">
-                      <AlertTriangle className="h-3 w-3" />
-                      <span className="text-xs">
-                        {ERROR_MESSAGES.INSUFFICIENT_BALANCE}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!selectedToken ? (
+            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+              Select a token to view details
+            </div>
+          ) : (
+            <>
+              {/* Rate Display */}
+              {rateError ? (
+                <Alert variant="destructive" className="py-2">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <AlertDescription className="text-xs">
+                    {rateError}
+                  </AlertDescription>
+                </Alert>
+              ) : currentRate ? (
+                <div className="space-y-3">
+                  {/* Exchange Rate */}
+                  <div className="p-2.5 bg-muted/30 rounded-md border">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-muted-foreground">
+                        Exchange Rate
                       </span>
+                      <span className="text-sm font-medium">
+                        1 {selectedToken.symbol} = KES{" "}
+                        {currentRate.base_rate.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Fee Breakdown */}
+                  {feeBreakdown && kesAmount && validateAmount(kesAmount) && (
+                    <div className="p-2.5 bg-muted/30 rounded-md border space-y-2">
+                      <div className="text-xs font-medium text-center pb-2 border-b">
+                        Fee Breakdown
+                      </div>
+
+                      {/* Warning for fallback calculations */}
+                      {rateError && (
+                        <div className="text-xs text-orange-600 bg-orange-50 dark:bg-orange-950/30 p-2 rounded">
+                          ⚠️ Fee structure unavailable
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Amount to Receive:
+                          </span>
+                          <span className="font-medium">
+                            KES {feeBreakdown.baseAmount.toLocaleString()}
+                          </span>
+                        </div>
+
+                        {feeBreakdown.feeApplied && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Service Fee:
+                              </span>
+                              <span className="font-medium text-orange-600 dark:text-orange-500">
+                                +KES {feeBreakdown.feeAmount.toLocaleString()}
+                              </span>
+                            </div>
+
+                            {feeBreakdown.feeBand && (
+                              <div className="text-xs text-muted-foreground pt-1">
+                                {feeBreakdown.feeBand.description}
+                              </div>
+                            )}
+
+                            <div className="border-t pt-2 mt-2">
+                              <div className="flex justify-between font-medium">
+                                <span>Total Amount:</span>
+                                <span className="text-red-600 dark:text-red-500">
+                                  KES{" "}
+                                  {feeBreakdown.totalAmount.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        {!feeBreakdown.feeApplied && (
+                          <div className="text-xs text-green-600 dark:text-green-500 pt-1">
+                            ✓ Free transaction (under KES{" "}
+                            {ELEMENTPAY_CONFIG.MARKUP_THRESHOLD})
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Token Amount Required */}
+                  {tokenAmount > 0 && (
+                    <div className="p-2.5 bg-muted/30 rounded-md border space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">
+                          You need:
+                        </span>
+                        <span className="text-sm font-medium">
+                          {tokenAmount.toFixed(6)} {selectedToken.symbol}
+                        </span>
+                      </div>
+
+                      {/* Balance Check */}
+                      {tokenBalance && (
+                        <div className="pt-2 border-t">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-muted-foreground">
+                              Wallet Balance:
+                            </span>
+                            <span
+                              className={`font-medium ${
+                                hasInsufficientBalance
+                                  ? "text-red-500"
+                                  : "text-green-600 dark:text-green-500"
+                              }`}
+                            >
+                              {tokenBalance.formattedBalance}{" "}
+                              {selectedToken.symbol}
+                            </span>
+                          </div>
+                          {hasInsufficientBalance && (
+                            <div className="flex items-center space-x-1 mt-1.5 text-red-500">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span className="text-xs">
+                                {ERROR_MESSAGES.INSUFFICIENT_BALANCE}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Validation Status & Process Button */}
-        {selectedToken && kesAmount && phoneNumber && (
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2 text-sm">
-              {isValidCalculation && !hasInsufficientBalance ? (
-                <>
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-green-600">Ready to process</span>
-                </>
-              ) : hasInsufficientBalance ? (
-                <>
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
-                  <span className="text-red-500">Insufficient balance</span>
-                </>
-              ) : !isWalletConnected ? (
-                <>
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
-                  <span className="text-orange-500">Please connect wallet</span>
-                </>
               ) : (
-                <>
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
-                  <span className="text-orange-500">
-                    Please complete all fields
+                <div className="p-2.5 bg-muted/30 rounded-md border">
+                  <span className="text-xs text-muted-foreground">
+                    Loading exchange rate...
                   </span>
-                </>
+                </div>
               )}
-            </div>
 
-            {/* Process Payment Button */}
-            {isWalletConnected && (
-              <Button
-                onClick={handleProcessPayment}
-                disabled={!isValidCalculation || hasInsufficientBalance}
-                className="w-full"
-                size="lg"
-              >
-                {`Process Payment: ${
-                  kesAmount
-                    ? `KES ${parseFloat(kesAmount).toLocaleString()}`
-                    : "KES 0"
-                }`}
-              </Button>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              {/* Validation Status */}
+              {kesAmount && phoneNumber && (
+                <div className="pt-2 border-t">
+                  <div className="flex items-center space-x-2 text-xs">
+                    {isValidCalculation && !hasInsufficientBalance ? (
+                      <>
+                        <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-500" />
+                        <span className="text-green-600 dark:text-green-500">
+                          Ready to process
+                        </span>
+                      </>
+                    ) : hasInsufficientBalance ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                        <span className="text-red-500">
+                          Insufficient balance
+                        </span>
+                      </>
+                    ) : !isWalletConnected ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                        <span className="text-orange-500">
+                          Please connect wallet
+                        </span>
+                      </>
+                    ) : rateError ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                        <span className="text-red-500">
+                          Failed to load rates
+                        </span>
+                      </>
+                    ) : isLoadingRate ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                        <span className="text-orange-500">
+                          Loading rates...
+                        </span>
+                      </>
+                    ) : !currentRate ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                        <span className="text-orange-500">
+                          Rates not loaded
+                        </span>
+                      </>
+                    ) : !validatePhoneNumber(phoneNumber) ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                        <span className="text-orange-500">
+                          Invalid phone number
+                        </span>
+                      </>
+                    ) : !validateAmount(kesAmount) ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                        <span className="text-orange-500">Invalid amount</span>
+                      </>
+                    ) : tokenAmount <= 0 ? (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                        <span className="text-orange-500">
+                          Calculation failed
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                        <span className="text-orange-500">
+                          Complete all fields
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Process Payment Button */}
+              {isWalletConnected && (
+                <div className="pt-2">
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={handleProcessPayment}
+                      disabled={
+                        !isValidCalculation ||
+                        hasInsufficientBalance ||
+                        isProcessingTransaction
+                      }
+                      className="w-full h-10"
+                      size="default"
+                    >
+                      {isProcessingTransaction ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          Process Payment
+                          {feeBreakdown?.totalAmount || kesAmount ? (
+                            <span className="ml-2 font-semibold">
+                              KES{" "}
+                              {(
+                                feeBreakdown?.totalAmount ||
+                                parseFloat(kesAmount) ||
+                                0
+                              ).toLocaleString()}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Cancel Transaction Button */}
+                    {isProcessingTransaction && (
+                      <Button
+                        onClick={handleCancelTransaction}
+                        variant="outline"
+                        size="default"
+                        className="w-full h-10"
+                      >
+                        Cancel Transaction
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

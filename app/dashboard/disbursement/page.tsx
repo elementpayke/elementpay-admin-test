@@ -161,14 +161,14 @@ export default function DisbursementPage() {
   return (
     <AuthGuard>
       <DashboardLayout>
-        <div className="container mx-auto p-6 space-y-6 !w-full">
+        <div className="container mx-auto p-4 space-y-4 max-w-7xl">
           {/* Header */}
-          <div className="flex flex-row w-full justify-between">
-            <div className="flex flex-col space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight">
+          <div className="flex flex-col md:flex-row w-full justify-between items-start md:items-center gap-3">
+            <div className="flex flex-col space-y-1">
+              <h1 className="text-2xl font-bold tracking-tight">
                 Crypto Off-Ramp
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Convert your crypto tokens to KES and receive funds via M-PESA
               </p>
             </div>
@@ -180,26 +180,23 @@ export default function DisbursementPage() {
 
           {/* Wallet Status */}
           {isWalletConnected && walletAddress && walletBalances.length > 0 && (
-            <div className="bg-card border rounded-lg p-4 mb-6">
-              <h3 className="text-sm font-medium mb-3">Wallet Balances</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="bg-card border rounded-lg p-2">
+              <h3 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">Wallet Balances</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                 {walletBalances.map((balance) => (
                   <div
                     key={balance.token.tokenAddress}
-                    className="flex justify-between items-center p-3 bg-muted/50 rounded-lg"
+                    className="flex justify-between items-center p-1 bg-muted/30 rounded-md border"
                   >
                     <div>
-                      <div className="font-medium">{balance.token.symbol}</div>
+                      <div className="text-sm font-medium">{balance.token.symbol}</div>
                       <div className="text-xs text-muted-foreground">
                         {balance.token.chain}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">
+                      <div className="text-sm font-medium">
                         {balance.formattedBalance}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {balance.token.symbol}
                       </div>
                     </div>
                   </div>
@@ -211,12 +208,10 @@ export default function DisbursementPage() {
           {/* ElementPay Calculator */}
           <ElementPayCalculator
             onCalculationChange={setElementPayCalculation}
-            // onProcessPayment={processPayments}
             walletBalances={walletBalances}
             supportedTokens={supportedTokens}
             walletAddress={walletAddress}
             isWalletConnected={isWalletConnected}
-            className="mb-6"
           />
 
           {/* Recent Transactions */}
