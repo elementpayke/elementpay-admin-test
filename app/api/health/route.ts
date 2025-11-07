@@ -10,8 +10,8 @@ export async function GET() {
       environment: process.env.NODE_ENV,
       version: process.env.npm_package_version || '1.0.0',
       services: {
-        elementpay_sandbox: process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE ? 'configured' : 'not configured',
-        elementpay_live: process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE ? 'configured' : 'not configured',
+        elementpay_sandbox: process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE ? 'configured' : 'not configured',
+        elementpay_live: process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE ? 'configured' : 'not configured',
         auth: process.env.AUTH_SECRET ? 'configured' : 'not configured'
       }
     }

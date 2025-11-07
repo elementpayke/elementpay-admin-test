@@ -137,8 +137,8 @@ export async function POST(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const isSandbox = searchParams.get('sandbox') === 'true'
     const elementPayBaseUrl = isSandbox 
-      ? (process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
-      : (process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
+      ? (process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
+      : (process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
     
     const elementPayUrl = `${elementPayBaseUrl}/api-keys`
     

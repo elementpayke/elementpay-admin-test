@@ -10,11 +10,11 @@ export interface ApiConfig {
 // Environment configurations
 const ENVIRONMENTS: Record<Environment, ApiConfig> = {
   sandbox: {
-    baseUrl: process.env.NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1',
+    baseUrl: process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1',
     environment: 'sandbox'
   },
   live: {
-    baseUrl: process.env.NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1',
+    baseUrl: process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1',
     environment: 'live'
   }
 }

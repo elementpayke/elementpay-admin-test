@@ -50,7 +50,7 @@ const liskSepolia = {
 export const config = getDefaultConfig({
   appName: "Element Pay Dashboard",
   projectId:
-    process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "demo-project-id",
+    process.env.NEXT_PRIVATE_WALLET_CONNECT_PROJECT_ID || "demo-project-id",
   chains: [
     // Mainnet chains
     base, mainnet, arbitrum, scroll, lisk,

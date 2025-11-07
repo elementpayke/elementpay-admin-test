@@ -23,9 +23,9 @@ NEXTAUTH_URL=http://localhost:3000
 AUTH_SECRET=your-development-secret-change-this
 
 # ElementPay API Configuration
-NEXT_PUBLIC_ELEMENTPAY_SANDBOX_BASE=https://sandbox.elementpay.net/api/v1
-NEXT_PUBLIC_ELEMENTPAY_LIVE_BASE=https://api.elementpay.net/api/v1
-NEXT_PUBLIC_ELEMENTPAY_ENV=sandbox
+NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE=https://sandbox.elementpay.net/api/v1
+NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE=https://api.elementpay.net/api/v1
+NEXT_PRIVATE_ELEMENTPAY_ENV=sandbox
 EOF
     echo -e "${GREEN}✅ Created .env file. Please update it with your actual values.${NC}"
     echo ""
