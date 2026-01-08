@@ -67,8 +67,8 @@ class ElementPayApiClient {
   constructor() {
     this.apiKey =
     ELEMENTPAY_CONFIG.getCurrentEnvironment() === 'sandbox'
-    ? process.env.NEXT_PRIVATE_ELEMENTPAY_API_KEY_SANDBOX || ''
-    : process.env.NEXT_PRIVATE_ELEMENTPAY_API_KEY_LIVE || ''
+    ? process.env.ELEMENTPAY_API_KEY || ''
+    : process.env.ELEMENTPAY_API_KEY_LIVE || ''
   }
 
   /**

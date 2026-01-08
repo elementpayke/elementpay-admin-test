@@ -16,11 +16,11 @@ import {
 import type { ElementPayToken, WalletBalance } from "@/lib/types";
 import { toast } from "sonner";
 import { elementPayTokenService } from "@/lib/elementpay-token-service";
-import { erc20Abi, parseUnits } from "viem";
+import { erc20Abi, parseUnits, getAddress, isAddress } from "viem";
 import { useWriteContract, usePublicClient, useChainId } from "wagmi";
 import { ethers } from "ethers";
-import { elementPayApiClient } from "@/lib/elementpay-api-client";
 import { useTransactionPolling } from "@/lib/transaction-polling-context";
+import { elementPayEncryption } from "@/lib/elementpay-encryption";
 
 interface ElementPayCalculatorProps {
   onCalculationChange: (calculation: {
@@ -282,8 +282,24 @@ export default function ElementPayCalculator({
 
     try {
       setIsProcessingTransaction(true);
+
+      // Validate addresses
+      if (
+        !selectedToken?.tokenAddress ||
+        !isAddress(selectedToken.tokenAddress)
+      ) {
+        throw new Error("Invalid token address");
+      }
+      if (!walletAddress || !isAddress(walletAddress)) {
+        throw new Error("Invalid wallet address");
+      }
+
+      if (!currentRate) {
+        throw new Error("Exchange rate not available");
+      }
+
       const approveAmount = (
-        Number(kesAmount) / (currentRate?.marked_up_rate || 1)
+        Number(kesAmount) / (currentRate.marked_up_rate || 1)
       ).toString();
 
       const approvalAmount = parseUnits(
@@ -293,22 +309,36 @@ export default function ElementPayCalculator({
 
       const spender = ELEMENTPAY_CONFIG.getContractAddress();
 
+      // Ensure all addresses are properly checksummed
+      const tokenAddress = getAddress(selectedToken.tokenAddress);
+      const userAddress = getAddress(walletAddress);
+
       const approvalHash = await writeContractAsync({
-        address: selectedToken?.tokenAddress as `0x${string}`,
+        address: tokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: "approve",
-        args: [spender as `0x${string}`, approvalAmount],
+        args: [spender, approvalAmount],
         chain: selectedToken?.chain as any,
-        account: walletAddress as `0x${string}`,
+        account: userAddress as `0x${string}`,
       });
 
       await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
 
       const formattedPhoneNumber = formatPhoneNumber(phoneNumber);
 
+      // Build the encrypted message hash expected by ElementPay
+      const messageHash = elementPayEncryption.encryptMessageDetailed({
+        cashout_type: "PHONE",
+        amount_fiat: Number(kesAmount),
+        currency: "KES",
+        rate: currentRate?.marked_up_rate || currentRate?.base_rate || 0,
+        phone_number: formattedPhoneNumber,
+      });
+
+      // Build the order payload matching the expected schema
       const orderDetails = {
-        user_address: walletAddress,
-        token: selectedToken?.tokenAddress as `0x${string}`,
+        user_address: userAddress,
+        token: tokenAddress as `0x${string}`,
         order_type: 1 as const,
         fiat_payload: {
           amount_fiat: Number(kesAmount),
@@ -316,6 +346,8 @@ export default function ElementPayCalculator({
           phone_number: formattedPhoneNumber,
           currency: "KES" as const,
         },
+        message_hash: messageHash,
+        reason: "Transport",
       };
 
       if (!window.ethereum) throw new Error("Wallet not found");
@@ -324,22 +356,45 @@ export default function ElementPayCalculator({
       const message = JSON.stringify(orderDetails);
       const _signature = await signer.signMessage(message);
 
-      // Create order only after successful signature
-      const order = await elementPayApiClient.createOrder(
-        orderDetails,
-        _signature
+      // Create order via server-side API route (keeps API key secure)
+      const currentEnvironment = ELEMENTPAY_CONFIG.getCurrentEnvironment();
+      console.log(
+        "🔄 [CALCULATOR] Creating order with environment:",
+        currentEnvironment
       );
+
+      const orderResponse = await fetch("/api/elementpay/orders/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderPayload: orderDetails,
+          signature: _signature,
+          environment: currentEnvironment,
+        }),
+      });
+
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.error || "Failed to create order");
+      }
+
+      const order = await orderResponse.json();
       console.log("✅ Order created successfully:", { order });
 
       // Get full order details to obtain the order_id for event matching
       let orderId = order.data.tx_hash; // fallback
       try {
-        const fullOrderDetails =
-          await elementPayApiClient.getOrderByTransactionHash(
-            order.data.tx_hash
-          );
-        orderId = fullOrderDetails.order_id;
-        console.log("📋 Got full order details, order_id:", orderId);
+        const orderDetailsResponse = await fetch(
+          `/api/elementpay/orders/${order.data.tx_hash}?environment=${currentEnvironment}`
+        );
+
+        if (orderDetailsResponse.ok) {
+          const fullOrderDetails = await orderDetailsResponse.json();
+          orderId = fullOrderDetails.order_id;
+          console.log("📋 Got full order details, order_id:", orderId);
+        }
       } catch (error) {
         console.warn(
           "⚠️ Could not get full order details, using tx_hash as order_id:",
@@ -355,7 +410,7 @@ export default function ElementPayCalculator({
         tokenAmount: tokenAmount,
         tokenSymbol: selectedToken!.symbol,
         phoneNumber: formattedPhoneNumber,
-        walletAddress,
+        walletAddress: userAddress,
         chainId,
       });
 
