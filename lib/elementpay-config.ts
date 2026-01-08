@@ -1,16 +1,24 @@
 import { environmentManager } from './api-config'
+import { getAddress, isAddress } from 'viem'
 
 // ElementPay Configuration
 export const ELEMENTPAY_CONFIG = {
-  // Contract Addresses - Environment specific
-  CONTRACT_ADDRESS_LIVE: process.env.NEXT_PRIVATE_ELEMENTPAY_CONTRACT_ADDRESS_LIVE || '0x...',
-  CONTRACT_ADDRESS_SANDBOX: process.env.NEXT_PRIVATE_ELEMENTPAY_CONTRACT_ADDRESS_SANDBOX || '0x...',
+  // Contract Addresses - Environment specific (NEXT_PUBLIC_ makes them available on client)
+  CONTRACT_ADDRESS_LIVE: process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_LIVE || '0x...',
+  CONTRACT_ADDRESS_SANDBOX: process.env.NEXT_PUBLIC_ELEMENTPAY_CONTRACT_ADDRESS_SANDBOX || '0x...',
   
   // Get contract address based on current environment
   getContractAddress: () => {
-    return environmentManager.isSandbox() 
+    const address = environmentManager.isSandbox() 
       ? ELEMENTPAY_CONFIG.CONTRACT_ADDRESS_SANDBOX 
       : ELEMENTPAY_CONFIG.CONTRACT_ADDRESS_LIVE
+    
+    // Ensure address is valid and checksummed
+    if (!address || !isAddress(address)) {
+      throw new Error(`Invalid contract address: ${address}`)
+    }
+    
+    return getAddress(address) as `0x${string}`
   },
   
   // Encryption

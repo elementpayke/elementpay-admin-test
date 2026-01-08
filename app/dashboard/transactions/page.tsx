@@ -107,7 +107,6 @@ export default function TransactionsPage() {
   const { environment: apiConfigEnvironment, isSandbox } = useEnvironment();
 
   const client = useMemo(() => ordersClient(), []);
-  const token = session?.elementPayToken as string | undefined;
 
   const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -137,10 +136,8 @@ export default function TransactionsPage() {
         offset,
       },
     ],
-    enabled: !!token,
+    enabled: !!session, // Only fetch when session exists
     queryFn: async () => {
-      if (!token) throw new Error("Not authenticated");
-
       const filters = {
         ...(statusFilter !== "all" && {
           status: statusFilter as OrderStatus,
@@ -152,7 +149,8 @@ export default function TransactionsPage() {
         offset,
       };
 
-      const response = await client.list(filters, token, isSandbox);
+      // Token is handled securely on server-side via session
+      const response = await client.list(filters, undefined, isSandbox);
 
       // The orders client returns the full response object
       if (response) {
