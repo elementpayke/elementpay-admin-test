@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerBaseUrl } from "@/lib/api-config"
+import { aggregatorFetch } from "@/lib/elementpay-server"
 
 export const dynamic = 'force-dynamic'
 
@@ -15,9 +15,6 @@ export async function GET(req: NextRequest) {
         data: null
       }, { status: 401 })
     }
-
-    // Get environment from centralized configuration
-    const elementPayBaseUrl = getServerBaseUrl(req)
 
     // Get query parameters from request
     const { searchParams } = new URL(req.url)
@@ -37,17 +34,16 @@ export async function GET(req: NextRequest) {
     if (offset) params.set('offset', offset)
 
     const queryString = params.toString()
-    const elementPayUrl = `${elementPayBaseUrl}/users/me/orders${queryString ? `?${queryString}` : ''}`
+    const ordersPath = `/users/me/orders${queryString ? `?${queryString}` : ''}`
 
-    console.log('Element Pay Orders URL:', elementPayUrl)
-    const response = await fetch(elementPayUrl, {
+    console.log('Element Pay Orders path:', ordersPath)
+    const response = await aggregatorFetch(ordersPath, {
       method: 'GET',
+      request: req,
       headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'ElementPay-Frontend/1.0'
-      }
+        Authorization: authHeader,
+        'User-Agent': 'ElementPay-Frontend/1.0',
+      },
     })
 
     console.log('Orders API Response status:', response.status)

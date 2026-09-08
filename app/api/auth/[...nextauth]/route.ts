@@ -25,8 +25,9 @@ export const authOptions: AuthOptions = {
 
         try {
           // Authenticate with Element Pay API through our internal proxy
-          // NEXT_AUTH_URL is our Next.js app URL, not the ElementPay API URL
-          const appBaseUrl = process.env.NEXT_AUTH_URL || 'http://localhost:3000'
+          // NEXTAUTH_URL is our Next.js app URL, not the ElementPay API URL
+          const appBaseUrl =
+            process.env.NEXTAUTH_URL || process.env.NEXT_AUTH_URL || 'http://localhost:3000'
           const isSandbox = credentials.sandbox === 'true'
           
           const response = await fetch(`${appBaseUrl}/api/elementpay/login`, {
@@ -72,6 +73,7 @@ export const authOptions: AuthOptions = {
               headers: {
                 'Authorization': `Bearer ${data.access_token}`,
                 'Content-Type': 'application/json',
+                'x-elementpay-environment': isSandbox ? 'sandbox' : 'live',
               },
             })
             
@@ -90,11 +92,13 @@ export const authOptions: AuthOptions = {
             elementPayRefreshToken: data.refresh_token,
             tokenType: data.token_type || 'Bearer',
             userProfile: userProfile,
+            isSandbox,
           } as User & { 
             elementPayToken: string
             elementPayRefreshToken: string
             tokenType: string
             userProfile: any
+            isSandbox: boolean
           }
         } catch (error) {
           console.error('Element Pay authentication error:', error)
@@ -114,6 +118,7 @@ export const authOptions: AuthOptions = {
         token.elementPayRefreshToken = user.elementPayRefreshToken
         token.tokenType = user.tokenType
         token.userProfile = user.userProfile
+        token.isSandbox = user.isSandbox === true
         token.tokenExpiry = Date.now() + (60 * 60 * 1000) // 1 hour from now
       }
 
@@ -122,7 +127,8 @@ export const authOptions: AuthOptions = {
       
       if (shouldRefresh && token.elementPayRefreshToken) {
         try {
-          const appBaseUrl = process.env.NEXT_AUTH_URL || 'http://localhost:3000'
+          const appBaseUrl =
+            process.env.NEXTAUTH_URL || process.env.NEXT_AUTH_URL || 'http://localhost:3000'
           const refreshResponse = await fetch(`${appBaseUrl}/api/elementpay/token/refresh`, {
             method: 'POST',
             headers: {
@@ -130,6 +136,7 @@ export const authOptions: AuthOptions = {
             },
             body: JSON.stringify({
               refresh_token: token.elementPayRefreshToken,
+              sandbox: token.isSandbox === true,
             }),
           })
 

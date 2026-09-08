@@ -10,9 +10,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const isSandbox = isSandboxFlag(body.sandbox)
 
-    console.log('Proxying password reset confirm for:', body.email)
-
-    const response = await aggregatorFetch('/auth/password/reset/confirm', {
+    const response = await aggregatorFetch('/auth/request-otp', {
       method: 'POST',
       sandbox: isSandbox,
       body: JSON.stringify(body),
@@ -21,7 +19,7 @@ export async function POST(request: NextRequest) {
     const data = await parseAggregatorJson(response)
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('Password reset confirm proxy error:', error)
+    console.error('Request OTP proxy error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

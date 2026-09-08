@@ -12,6 +12,7 @@ export async function GET() {
       services: {
         elementpay_sandbox: process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE ? 'configured' : 'not configured',
         elementpay_live: process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE ? 'configured' : 'not configured',
+        fe_client_secret: process.env.FE_CLIENT_SECRET ? 'configured' : 'not configured',
         auth: process.env.AUTH_SECRET ? 'configured' : 'not configured'
       }
     }
