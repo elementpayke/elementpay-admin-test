@@ -19,11 +19,18 @@ Create a `.env` file in the project root:
 NEXTAUTH_URL=http://localhost:3000
 AUTH_SECRET=your-super-secret-auth-key-change-this-in-production
 
-# ElementPay API Configuration
+# ElementPay API Configuration (server-only)
 NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE=https://sandbox.elementpay.net/api/v1
 NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE=https://api.elementpay.net/api/v1
 NEXT_PRIVATE_ELEMENTPAY_ENV=sandbox
+
+# Shared with aggregator FE_CLIENT_SECRET — never use NEXT_PUBLIC_* for this
+FE_CLIENT_SECRET=shared-secret-must-match-aggregator
 ```
+
+When the aggregator enables `FE_CLIENT_SECRET_REQUIRED`, all auth issuance calls from this dapp go **Browser → Next.js `/api/elementpay/*` → Aggregator** with header `X-FE-Client-Secret`. Do not put `FE_CLIENT_SECRET` in client code.
+
+When `JWT_ORIGIN_CHECK_REQUIRED` is on, set aggregator `JWT_ALLOWED_ORIGINS` to include `https://dapp.elementpay.net` (and `http://localhost:3000` for local if any browser→aggregator JWT calls remain). JWT calls proxied through the BFF with a valid FE secret skip the Origin check.
 
 ### 2. Production Deployment
 

@@ -16,6 +16,7 @@ services:
       - NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE=${NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE:-https://sandbox.elementpay.net/api/v1}
       - NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE=${NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE:-https://api.elementpay.net/api/v1}
       - NEXT_PRIVATE_ELEMENTPAY_ENV=${NEXT_PRIVATE_ELEMENTPAY_ENV:-sandbox}
+      - FE_CLIENT_SECRET=${FE_CLIENT_SECRET:-}
 
       # Development Environment
       - NODE_ENV=development

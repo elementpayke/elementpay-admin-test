@@ -1,4 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from 'next/server'
+import {
+  aggregatorFetch,
+  isSandboxFlag,
+  parseAggregatorJson,
+} from '@/lib/elementpay-server'
 
 export async function POST(req: Request) {
   try {
@@ -6,46 +11,36 @@ export async function POST(req: Request) {
     const { email, sandbox } = body
 
     if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-    console.log('Resending verification code for:', email)
-    console.log('Resend verification request body:', { 
-      email: email, 
-      isSandbox: !!sandbox,
-      bodyKeys: Object.keys(body)
-    })
+    const isSandbox = isSandboxFlag(sandbox)
+    console.log('Resending verification code for:', email, isSandbox ? 'SANDBOX' : 'LIVE')
 
-    // Choose the correct ElementPay API based on sandbox parameter
-    const isSandbox = sandbox === true || sandbox === 'true'
-    const elementPayBaseUrl = isSandbox 
-      ? (process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
-      : (process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
-    
-    const resendUrl = `${elementPayBaseUrl}/auth/resend-verification`
-    
-    console.log('Using ElementPay URL:', resendUrl)
-    console.log('Environment:', isSandbox ? 'SANDBOX' : 'LIVE')
-    
-    const response = await fetch(resendUrl, {
+    const response = await aggregatorFetch('/auth/resend-verification', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      sandbox: isSandbox,
       body: JSON.stringify({ email }),
     })
 
     if (!response.ok) {
-      const error = await response.text()
-      return NextResponse.json(
-        { error: error || "Failed to resend verification code" },
-        { status: response.status },
-      )
+      const data = await parseAggregatorJson(response)
+      const error =
+        typeof data === 'object' && data !== null && 'error' in data
+          ? String((data as { error: unknown }).error)
+          : 'Failed to resend verification code'
+      return NextResponse.json({ error }, { status: response.status })
     }
 
-    return NextResponse.json({ message: "Verification code resent successfully." }, { status: 200 })
-  } catch (error: any) {
-    console.error("Error resending verification code:", error)
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      { message: 'Verification code resent successfully.' },
+      { status: 200 }
+    )
+  } catch (error: unknown) {
+    console.error('Error resending verification code:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerBaseUrl } from "@/lib/api-config"
+import { aggregatorFetch, isSandboxFlag } from "@/lib/elementpay-server"
 
 export const dynamic = 'force-dynamic'
 
@@ -17,21 +17,13 @@ export async function GET(req: NextRequest) {
       }, { status: 401 })
     }
 
-    // Get environment from centralized configuration
-    const elementPayBaseUrl = getServerBaseUrl(req)
-
-    // console.log('Element Pay Base URL:', elementPayBaseUrl)
-    
-    const elementPayUrl = `${elementPayBaseUrl}/api-keys`
-    
-    const response = await fetch(elementPayUrl, {
+    const response = await aggregatorFetch('/api-keys', {
       method: 'GET',
+      request: req,
       headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'ElementPay-Frontend/1.0'
-      }
+        Authorization: authHeader,
+        'User-Agent': 'ElementPay-Frontend/1.0',
+      },
     })
 
     console.log('GET Response status:', response.status)
@@ -135,12 +127,7 @@ export async function POST(req: NextRequest) {
     
     // Get environment from query parameter or default to sandbox for API keys
     const { searchParams } = new URL(req.url)
-    const isSandbox = searchParams.get('sandbox') === 'true'
-    const elementPayBaseUrl = isSandbox 
-      ? (process.env.NEXT_PRIVATE_ELEMENTPAY_SANDBOX_BASE || 'https://sandbox.elementpay.net/api/v1')
-      : (process.env.NEXT_PRIVATE_ELEMENTPAY_LIVE_BASE || 'https://api.elementpay.net/api/v1')
-    
-    const elementPayUrl = `${elementPayBaseUrl}/api-keys`
+    const isSandbox = isSandboxFlag(searchParams.get('sandbox'))
     
     const elementPayBody = {
       name: body.name,
@@ -156,19 +143,17 @@ export async function POST(req: NextRequest) {
       }
     })
     
-    console.log('POST URL:', elementPayUrl)
     console.log('POST Body:', JSON.stringify(elementPayBody))
     console.log('POST Headers:', { 'Authorization': !!authHeader, 'Content-Type': 'application/json' })
     
-    const response = await fetch(elementPayUrl, {
+    const response = await aggregatorFetch('/api-keys', {
       method: 'POST',
+      sandbox: isSandbox,
       headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'ElementPay-Frontend/1.0'
+        Authorization: authHeader,
+        'User-Agent': 'ElementPay-Frontend/1.0',
       },
-      body: JSON.stringify(elementPayBody)
+      body: JSON.stringify(elementPayBody),
     })
 
     console.log('POST Response status:', response.status)
